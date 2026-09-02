@@ -7483,6 +7483,7 @@ private enum ClipboardPasteInserter {
     private static let virtualKeyV: CGKeyCode = 0x09  // ANSI 'v'
     private static let restoreDelayAfterRead: TimeInterval = 0.12
     private static let restoreTimeout: TimeInterval = 10
+    private static let targetRequestTimeout: TimeInterval = 2
     private static var pendingTransaction: ClipboardPasteTransaction?
 
     static func write(_ text: String, to pb: NSPasteboard) -> Bool {
@@ -7520,6 +7521,11 @@ private enum ClipboardPasteInserter {
             return false
         }
         return true
+    }
+
+    static func waitForPendingTargetRequest() async -> Bool? {
+        guard let transaction = pendingTransaction else { return nil }
+        return await transaction.waitForTextRequest(timeout: targetRequestTimeout)
     }
 
     private static func post(_ steps: [KeyboardEventStep]) -> Bool {
@@ -7578,6 +7584,8 @@ private final class ClipboardPasteTransaction: NSObject, NSPasteboardItemDataPro
     private var didProvideText = false
     private var isFinished = false
 
+    var textWasRequested: Bool { didProvideText }
+
     init(text: String,
          pasteboard: NSPasteboard,
          previousSnapshot: PasteboardSnapshot,
@@ -7625,6 +7633,20 @@ private final class ClipboardPasteTransaction: NSObject, NSPasteboardItemDataPro
         let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
         log("pasteboard target requested dictation text after \(millisecondsLabel(elapsed))")
         scheduleRestore(after: restoreDelay, reason: "target consumed dictation text")
+    }
+
+    func waitForTextRequest(timeout: TimeInterval) async -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
+        while !didProvideText,
+              !isFinished,
+              ProcessInfo.processInfo.systemUptime < deadline {
+            do {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            } catch {
+                break
+            }
+        }
+        return didProvideText
     }
 
     func restoreNowIfCurrent(reason: String) {
@@ -12752,14 +12774,20 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         if inserted {
                             if shouldPressEnterAfterInsertion {
                                 let enterDelayStartedAt = ProcessInfo.processInfo.systemUptime
-                                let enterDelayNanoseconds = UInt64(settings.enterDelayMilliseconds) * 1_000_000
-                                if enterDelayNanoseconds > 0 {
-                                    try? await Task.sleep(nanoseconds: enterDelayNanoseconds)
-                                }
-                                if KeyboardShortcutPoster.postReturn() {
-                                    log("return posted after dictation")
+                                let targetRequestedText = await ClipboardPasteInserter.waitForPendingTargetRequest()
+                                if targetRequestedText == false {
+                                    log("return skipped: paste target did not request dictation text")
+                                    dictationFailed = true
                                 } else {
-                                    log("return event creation failed")
+                                    let enterDelayNanoseconds = UInt64(settings.enterDelayMilliseconds) * 1_000_000
+                                    if enterDelayNanoseconds > 0 {
+                                        try? await Task.sleep(nanoseconds: enterDelayNanoseconds)
+                                    }
+                                    if KeyboardShortcutPoster.postReturn() {
+                                        log("return posted after paste target accepted dictation text")
+                                    } else {
+                                        log("return event creation failed")
+                                    }
                                 }
                                 enterDelaySeconds = ProcessInfo.processInfo.systemUptime - enterDelayStartedAt
                             }
@@ -18601,6 +18629,7 @@ private enum ParakeySelfTest {
             return (
                 installed: installed,
                 freshText: freshText,
+                textWasRequested: transaction.textWasRequested,
                 restoredText: pasteboard.string(forType: .string),
                 transactionFinished: transactionFinished
             )
@@ -18614,6 +18643,11 @@ private enum ParakeySelfTest {
             lazyPasteProbe.freshText,
             equals: "fresh dictation",
             "the paste target should receive the current dictation"
+        )
+        try expect(
+            lazyPasteProbe.textWasRequested,
+            equals: true,
+            "clipboard transactions should confirm that the target requested dictation text"
         )
         try expect(
             lazyPasteProbe.restoredText,
