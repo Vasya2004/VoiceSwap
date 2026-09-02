@@ -8,7 +8,7 @@
 2. Вставьте эту команду и нажмите Enter:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.40/install.sh | /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | /usr/bin/arch -arm64 /bin/bash
 ```
 
 3. В открывшемся SuperDictate нажмите `Разрешить` для **Микрофона**,
@@ -54,6 +54,11 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh 
   Он выполняет противоположное действие: если основной хоткей нажимает Enter,
   этот завершит без Enter, и наоборот. Альтернативный хоткей можно выключить.
 - **Правый Shift + правый Command** — открыть или закрыть быструю историю.
+- История показывает по 5 записей; стрелки листают до 100 последних
+  транскрипций. Нажатие на запись копирует её и закрывает панель.
+- Кнопка импорта аудио в истории принимает один или несколько аудиофайлов,
+  показывает прогресс и сохраняет готовые `.txt` на Рабочий стол или в
+  выбранную в настройках папку.
 - Все три сочетания можно изменить независимо. Поддерживаются одиночные клавиши,
   функциональные клавиши, обычные сочетания и сочетания только из
   модификаторов, например `Option + Command`.
@@ -72,7 +77,8 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh 
 от её статуса; при наведении macOS показывает пояснение к каждой кнопке.
 
 Шестерёнка открывает отдельное окно с тремя сочетаниями, поведением завершения,
-выбором микрофона, размером капсулы, цветами и фоном индикатора. Переключатель
+выбором микрофона, папкой экспорта аудиофайлов, размером капсулы, цветами и
+фоном индикатора. Переключатель
 `RU / EN` мгновенно меняет язык обеих панелей. Изменения сначала остаются
 черновиком; кнопка `Сохранить и перезапустить` применяет их вместе и
 перезапускает только фоновую службу. История и модель при этом не удаляются.
@@ -152,7 +158,7 @@ Xcode и Command Line Tools для обычной установки не нуж
 Эта же команда остаётся запасным способом для любой версии:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.40/install.sh | /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | /usr/bin/arch -arm64 /bin/bash
 ```
 
 Приложение само не устанавливает обновления в фоне: запуск обновления всегда
@@ -166,7 +172,7 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.40/install.
 результат в `/Applications`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.40/install.sh | SUPERDICTATE_BUILD_FROM_SOURCE=1 /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | SUPERDICTATE_BUILD_FROM_SOURCE=1 /usr/bin/arch -arm64 /bin/bash
 ```
 
 Понадобятся бесплатные Apple Command Line Tools. Если их нет, установщик
@@ -250,7 +256,7 @@ GitHub Actions повторяет самотесты, собирает bundle, �
 ## Удаление
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.40/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/uninstall.sh | bash
 ```
 
 Приложение и фоновая служба удаляются. История, настройки и модель сохраняются,
