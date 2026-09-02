@@ -723,6 +723,16 @@ func transcriptHistoryArchive(_ entries: [TranscriptHistoryEntry],
     return next
 }
 
+func transcriptHistoryPageRange(itemCount: Int,
+                                requestedPage: Int,
+                                pageSize: Int = 5) -> Range<Int> {
+    guard itemCount > 0, pageSize > 0 else { return 0..<0 }
+    let pageCount = (itemCount + pageSize - 1) / pageSize
+    let page = min(max(0, requestedPage), pageCount - 1)
+    let start = page * pageSize
+    return start..<min(itemCount, start + pageSize)
+}
+
 private let DICTATION_USAGE_MAX_DAYS = 400
 
 struct DailyDictationUsage: Codable, Equatable {
@@ -2590,6 +2600,28 @@ extension ISO8601DateFormatter {
 // by each getter when the key is missing, rather than via a central
 // `register()` call.
 
+private func defaultAudioFileTranscriptionOutputDirectoryURL() -> URL {
+    FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
+}
+
+private func availableTranscriptOutputURL(for audioURL: URL,
+                                          in directoryURL: URL,
+                                          fileManager: FileManager = .default) -> URL {
+    let rawBaseName = audioURL.deletingPathExtension().lastPathComponent
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let baseName = rawBaseName.isEmpty ? "Transcription" : rawBaseName
+    var candidate = directoryURL.appendingPathComponent(baseName).appendingPathExtension("txt")
+    var suffix = 2
+    while fileManager.fileExists(atPath: candidate.path) {
+        candidate = directoryURL
+            .appendingPathComponent("\(baseName) \(suffix)")
+            .appendingPathExtension("txt")
+        suffix += 1
+    }
+    return candidate
+}
+
 final class Settings: @unchecked Sendable {
     private static let keyHotkeyKeycode = "hotkey_keycode"
     private static let keyHotkeyModifiers = "hotkey_modifiers"
@@ -2617,6 +2649,7 @@ final class Settings: @unchecked Sendable {
     private static let keyPlayFeedbackSounds = "play_feedback_sounds"
     private static let keyShowInDock = "show_in_dock"
     private static let keyInputDevice = "input_device"
+    private static let keyAudioFileTranscriptionOutputDirectory = "audio_file_transcription_output_directory_v1"
     private static let keyCheckForUpdates = "check_for_updates"
     private static let keyLastUpdateCheckAt = "last_update_check_at"
     private static let keyLastUpdateCheckSource = "last_update_check_source"
@@ -3038,6 +3071,24 @@ final class Settings: @unchecked Sendable {
                 defaults.set(normalized, forKey: Self.keyInputDevice)
             } else {
                 defaults.removeObject(forKey: Self.keyInputDevice)
+            }
+        }
+    }
+
+    var audioFileTranscriptionOutputDirectory: String {
+        get {
+            let stored = defaults.string(forKey: Self.keyAudioFileTranscriptionOutputDirectory)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return stored.isEmpty ? defaultAudioFileTranscriptionOutputDirectoryURL().path : stored
+        }
+        set {
+            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalized.isEmpty {
+                defaults.removeObject(forKey: Self.keyAudioFileTranscriptionOutputDirectory)
+            } else {
+                defaults.set(URL(fileURLWithPath: normalized, isDirectory: true)
+                    .standardizedFileURL.path,
+                             forKey: Self.keyAudioFileTranscriptionOutputDirectory)
             }
         }
     }
@@ -5568,6 +5619,60 @@ actor TranscriptionWorker {
             let fluidCallStartedAt = ProcessInfo.processInfo.systemUptime
             let result = try await asr.transcribe(samples, decoderState: &state, language: language)
             let fluidCallCompletedAt = ProcessInfo.processInfo.systemUptime
+            return TranscriptionWorkerResult(
+                text: result.text,
+                workerQueueSeconds: workerEnteredAt - requestedAt,
+                decoderPreparationSeconds: fluidCallStartedAt - decoderPreparationStartedAt,
+                fluidCallSeconds: fluidCallCompletedAt - fluidCallStartedAt,
+                fluidProcessingSeconds: result.processingTime
+            )
+        }
+    }
+
+    fileprivate func transcribe(fileURL: URL,
+                                language: Language? = nil,
+                                requestedAt: TimeInterval,
+                                progressHandler: @escaping @Sendable (Double) -> Void) async throws -> TranscriptionWorkerResult {
+        let workerEnteredAt = ProcessInfo.processInfo.systemUptime
+        guard let engine else { throw NSError(domain: "Parakey", code: -2) }
+        guard !inFlight else {
+            log("ASR: file transcription re-entered while inference is in flight — refusing")
+            assertionFailure("TranscriptionWorker.transcribe(fileURL:) re-entered across a suspension point")
+            throw NSError(domain: "Parakey", code: -3)
+        }
+        inFlight = true
+        defer { inFlight = false }
+
+        switch engine {
+        case .parakeetV3(let asr):
+            let audioFile = try AVAudioFile(forReading: fileURL)
+            let duration = audioFile.processingFormat.sampleRate > 0
+                ? Double(audioFile.length) / audioFile.processingFormat.sampleRate
+                : 0
+            let progressTask: Task<Void, Never>?
+            if duration > 15 {
+                let stream = await asr.transcriptionProgressStream
+                progressTask = Task {
+                    do {
+                        for try await progress in stream {
+                            if Task.isCancelled { return }
+                            progressHandler(progress)
+                        }
+                    } catch {
+                        // The transcription call reports the authoritative error.
+                    }
+                }
+            } else {
+                progressTask = nil
+            }
+            defer { progressTask?.cancel() }
+
+            let decoderPreparationStartedAt = ProcessInfo.processInfo.systemUptime
+            var state = try TdtDecoderState()
+            let fluidCallStartedAt = ProcessInfo.processInfo.systemUptime
+            let result = try await asr.transcribe(fileURL, decoderState: &state, language: language)
+            let fluidCallCompletedAt = ProcessInfo.processInfo.systemUptime
+            progressHandler(1)
             return TranscriptionWorkerResult(
                 text: result.text,
                 workerQueueSeconds: workerEnteredAt - requestedAt,
@@ -9743,6 +9848,22 @@ private final class HistoryOverlayPanel: NSPanel {
     }
 }
 
+private struct AudioFileTranscriptionProgressState {
+    let totalCount: Int
+    var completedCount = 0
+    var currentFileName = ""
+    var currentFileProgress: Double?
+    var savedURLs: [URL] = []
+    var failedFileNames: [String] = []
+    var isRunning = true
+
+    var overallProgress: Double {
+        guard totalCount > 0 else { return 0 }
+        let current = isRunning ? min(max(currentFileProgress ?? 0, 0), 1) : 0
+        return min(1, (Double(completedCount) + current) / Double(totalCount))
+    }
+}
+
 @MainActor
 private final class HistoryItemLabel: NSTextField {
     init(_ text: String) {
@@ -10053,6 +10174,7 @@ private final class HistoryToolbarButton: NSControl {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
         layer?.backgroundColor = hoverBackground.cgColor
     }
 
@@ -10061,6 +10183,7 @@ private final class HistoryToolbarButton: NSControl {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         layer?.backgroundColor = pressedBackground.cgColor
         guard let action else { return }
         NSApp.sendAction(action, to: target, from: self)
@@ -10539,6 +10662,14 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var historyOverlayGlobalDismissMonitor: Any?
     private var historyOverlayLocalDismissMonitor: Any?
     private var historyOverlayRows: [HistoryTranscriptItemView] = []
+    private var historyOverlayPage = 0
+    private let historyOverlayPageSize = 5
+    private var audioFileTranscriptionTask: Task<Void, Never>?
+    private var audioFileTranscriptionState: AudioFileTranscriptionProgressState?
+    private var audioFileTranscriptionGeneration = 0
+    private weak var audioFileTranscriptionProgressIndicator: NSProgressIndicator?
+    private weak var audioFileTranscriptionTitleLabel: NSTextField?
+    private weak var audioFileTranscriptionDetailLabel: NSTextField?
     private var statisticsOverlayWindow: HistoryOverlayPanel?
     private var statisticsOverlayAnimationToken = 0
     private var statisticsOverlayPresented = false
@@ -10552,6 +10683,22 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var visibleHistory: [TranscriptHistoryEntry] {
         limitedRecentTranscriptEntries(history, limit: settings.recentTranscriptLimit)
+    }
+
+    private var historyOverlayPageCount: Int {
+        max(1, (history.count + historyOverlayPageSize - 1) / historyOverlayPageSize)
+    }
+
+    private var historyOverlayPageEntries: [(archiveIndex: Int, entry: TranscriptHistoryEntry)] {
+        transcriptHistoryPageRange(itemCount: history.count,
+                                   requestedPage: historyOverlayPage,
+                                   pageSize: historyOverlayPageSize).map {
+            (archiveIndex: $0, entry: history[$0])
+        }
+    }
+
+    private func clampHistoryOverlayPage() {
+        historyOverlayPage = min(max(0, historyOverlayPage), historyOverlayPageCount - 1)
     }
 
     /// In-session click counter per permission. The first click asks
@@ -10795,6 +10942,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateCheckLoopTask = nil
         manualUpdateCheckTask?.cancel()
         manualUpdateCheckTask = nil
+        audioFileTranscriptionTask?.cancel()
+        audioFileTranscriptionTask = nil
         settingsReloadRetryWorkItem?.cancel()
         settingsReloadRetryWorkItem = nil
         stopPermissionReadinessMonitor()
@@ -13089,6 +13238,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !history.isEmpty else { return }
         let count = history.count
         history.removeAll()
+        historyOverlayPage = 0
         settings.recentTranscriptEntries = []
         log("history cleared (\(count) entries)")
         rebuildMenu()
@@ -13105,6 +13255,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             log("history overlay closed from hotkey")
             return
         }
+        historyOverlayPage = 0
         showHistoryOverlay()
     }
 
@@ -13130,7 +13281,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         startHistoryOverlayDismissMonitoring()
-        log("history overlay shown (\(visibleHistory.count) visible, \(history.count) archived)")
+        log("history overlay shown (page \(historyOverlayPage + 1)/\(historyOverlayPageCount), \(history.count) archived)")
     }
 
     private func makeHistoryOverlayWindow() -> HistoryOverlayPanel {
@@ -13155,7 +13306,14 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let screen = screenForRecordingHUD()
         let visible = screen.visibleFrame
         let width: CGFloat = min(620, visible.width - 48)
-        let displayedHistory = visibleHistory
+        if audioFileTranscriptionState != nil {
+            let height: CGFloat = 164
+            return NSRect(x: visible.midX - (width / 2),
+                          y: visible.midY - (height / 2),
+                          width: width,
+                          height: height)
+        }
+        let displayedHistory = historyOverlayPageEntries
         let rowHeight: CGFloat = displayedHistory.isEmpty ? 58 : CGFloat(min(displayedHistory.count, 7)) * 64
         let height: CGFloat = min(500, 42 + rowHeight)
         let y = visible.midY - (height / 2)
@@ -13193,29 +13351,93 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -12),
         ])
 
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.spacing = 8
-        actions.alignment = .centerY
-        actions.addArrangedSubview(HistoryToolbarButton(
+        let actions = NSView()
+        actions.translatesAutoresizingMaskIntoConstraints = false
+
+        let leadingActions = NSStackView()
+        leadingActions.orientation = .horizontal
+        leadingActions.spacing = 8
+        leadingActions.alignment = .centerY
+        leadingActions.translatesAutoresizingMaskIntoConstraints = false
+        leadingActions.addArrangedSubview(HistoryToolbarButton(
             symbolName: "chart.xyaxis.line",
             accessibilityDescription: "Статистика",
             toolTip: "Статистика",
             target: self,
             action: #selector(showStatisticsFromHistoryOverlayClicked(_:))
         ))
-        actions.addArrangedSubview(NSView())
-        actions.addArrangedSubview(HistoryToolbarButton(
+        leadingActions.addArrangedSubview(HistoryToolbarButton(
+            symbolName: "waveform.badge.plus",
+            accessibilityDescription: "Транскрибировать аудиофайлы",
+            toolTip: "Выбрать аудиофайлы для транскрибации",
+            target: self,
+            action: #selector(transcribeAudioFilesFromHistoryOverlayClicked(_:))
+        ))
+
+        let navigation = NSStackView()
+        navigation.orientation = .horizontal
+        navigation.spacing = 4
+        navigation.alignment = .centerY
+        navigation.translatesAutoresizingMaskIntoConstraints = false
+        let previousPage = HistoryToolbarButton(
+            symbolName: "chevron.left",
+            accessibilityDescription: "Предыдущие транскрипции",
+            toolTip: "Более новые транскрипции",
+            target: self,
+            action: #selector(showPreviousHistoryPageClicked(_:))
+        )
+        previousPage.isEnabled = historyOverlayPage > 0
+        previousPage.alphaValue = previousPage.isEnabled ? 1 : 0.28
+        navigation.addArrangedSubview(previousPage)
+        let pageLabel = HistoryItemLabel("\(historyOverlayPage + 1) / \(historyOverlayPageCount)")
+        pageLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        pageLabel.textColor = .secondaryLabelColor
+        pageLabel.alignment = .center
+        pageLabel.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        navigation.addArrangedSubview(pageLabel)
+        let nextPage = HistoryToolbarButton(
+            symbolName: "chevron.right",
+            accessibilityDescription: "Следующие транскрипции",
+            toolTip: "Более старые транскрипции",
+            target: self,
+            action: #selector(showNextHistoryPageClicked(_:))
+        )
+        nextPage.isEnabled = historyOverlayPage + 1 < historyOverlayPageCount
+        nextPage.alphaValue = nextPage.isEnabled ? 1 : 0.28
+        navigation.addArrangedSubview(nextPage)
+
+        let settingsButton = HistoryToolbarButton(
             symbolName: "gearshape",
             accessibilityDescription: "Настройки",
             toolTip: "Настройки",
             target: self,
             action: #selector(showSetupFromHistoryOverlayClicked(_:))
-        ))
+        )
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+
+        actions.addSubview(leadingActions)
+        actions.addSubview(navigation)
+        actions.addSubview(settingsButton)
+        NSLayoutConstraint.activate([
+            actions.heightAnchor.constraint(equalToConstant: 32),
+            leadingActions.leadingAnchor.constraint(equalTo: actions.leadingAnchor),
+            leadingActions.centerYAnchor.constraint(equalTo: actions.centerYAnchor),
+            navigation.centerXAnchor.constraint(equalTo: actions.centerXAnchor),
+            navigation.centerYAnchor.constraint(equalTo: actions.centerYAnchor),
+            settingsButton.trailingAnchor.constraint(equalTo: actions.trailingAnchor),
+            settingsButton.centerYAnchor.constraint(equalTo: actions.centerYAnchor),
+        ])
         stack.addArrangedSubview(actions)
         actions.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
 
-        let displayedHistory = visibleHistory
+        if let state = audioFileTranscriptionState {
+            let progress = makeAudioFileTranscriptionProgressView(state)
+            stack.addArrangedSubview(progress)
+            progress.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            return root
+        }
+
+        let displayedHistory = historyOverlayPageEntries
         if displayedHistory.isEmpty {
             let empty = HistoryItemLabel("No dictations yet")
             empty.font = .systemFont(ofSize: 13)
@@ -13224,8 +13446,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             stack.addArrangedSubview(empty)
             empty.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         } else {
-            for (index, entry) in displayedHistory.prefix(7).enumerated() {
-                let row = historyOverlayRow(index: index, entry: entry)
+            for item in displayedHistory {
+                let row = historyOverlayRow(index: item.archiveIndex, entry: item.entry)
                 historyOverlayRows.append(row)
                 stack.addArrangedSubview(row)
                 row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -13233,6 +13455,84 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         return root
+    }
+
+    private func makeAudioFileTranscriptionProgressView(_ state: AudioFileTranscriptionProgressState) -> NSView {
+        let container = NSStackView()
+        container.orientation = .vertical
+        container.alignment = .leading
+        container.spacing = 7
+        container.edgeInsets = NSEdgeInsets(top: 3, left: 8, bottom: 2, right: 8)
+
+        let title = HistoryItemLabel(audioFileTranscriptionTitle(state))
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        title.textColor = .labelColor
+        container.addArrangedSubview(title)
+        title.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -16).isActive = true
+        audioFileTranscriptionTitleLabel = title
+
+        let detail = HistoryItemLabel(audioFileTranscriptionDetail(state))
+        detail.font = .systemFont(ofSize: 12, weight: .medium)
+        detail.textColor = .secondaryLabelColor
+        detail.lineBreakMode = .byTruncatingMiddle
+        container.addArrangedSubview(detail)
+        detail.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -16).isActive = true
+        audioFileTranscriptionDetailLabel = detail
+
+        let progress = NSProgressIndicator()
+        progress.style = .bar
+        progress.isIndeterminate = false
+        progress.minValue = 0
+        progress.maxValue = 1
+        progress.doubleValue = state.overallProgress
+        container.addArrangedSubview(progress)
+        progress.widthAnchor.constraint(equalTo: container.widthAnchor, constant: -16).isActive = true
+        audioFileTranscriptionProgressIndicator = progress
+
+        if !state.isRunning, !state.savedURLs.isEmpty {
+            let reveal = NSButton(title: "Показать в Finder",
+                                  target: self,
+                                  action: #selector(revealAudioFileTranscriptionsClicked(_:)))
+            reveal.bezelStyle = .rounded
+            reveal.controlSize = .small
+            reveal.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+            reveal.imagePosition = .imageLeading
+            container.addArrangedSubview(reveal)
+        }
+        return container
+    }
+
+    private func audioFileTranscriptionTitle(_ state: AudioFileTranscriptionProgressState) -> String {
+        if state.isRunning {
+            return "Транскрибирую \(min(state.completedCount + 1, state.totalCount)) из \(state.totalCount)"
+        }
+        if state.failedFileNames.isEmpty {
+            return state.savedURLs.count == 1 ? "Транскрибация готова" : "Готово: \(state.savedURLs.count) файлов"
+        }
+        return "Готово: \(state.savedURLs.count) · Ошибок: \(state.failedFileNames.count)"
+    }
+
+    private func audioFileTranscriptionDetail(_ state: AudioFileTranscriptionProgressState) -> String {
+        if state.isRunning {
+            if let progress = state.currentFileProgress {
+                return "\(Int((progress * 100).rounded()))% · \(state.currentFileName)"
+            }
+            return state.currentFileName
+        }
+        if let directory = state.savedURLs.first?.deletingLastPathComponent() {
+            return "Сохранено в \(directory.path)"
+        }
+        if let failed = state.failedFileNames.first {
+            return "Не удалось обработать: \(failed)"
+        }
+        return "Файлы не выбраны"
+    }
+
+    private func refreshAudioFileTranscriptionProgressUI() {
+        guard let state = audioFileTranscriptionState else { return }
+        audioFileTranscriptionTitleLabel?.stringValue = audioFileTranscriptionTitle(state)
+        audioFileTranscriptionDetailLabel?.stringValue = audioFileTranscriptionDetail(state)
+        audioFileTranscriptionProgressIndicator?.doubleValue = state.overallProgress
     }
 
     private func historyOverlayRow(index: Int, entry: TranscriptHistoryEntry) -> HistoryTranscriptItemView {
@@ -13253,11 +13553,24 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeHistoryOverlay()
     }
 
+    @objc private func showPreviousHistoryPageClicked(_ sender: Any) {
+        guard historyOverlayPage > 0 else { return }
+        historyOverlayPage -= 1
+        showHistoryOverlay()
+    }
+
+    @objc private func showNextHistoryPageClicked(_ sender: Any) {
+        guard historyOverlayPage + 1 < historyOverlayPageCount else { return }
+        historyOverlayPage += 1
+        showHistoryOverlay()
+    }
+
     private func deleteHistoryOverlayItem(at historyIndex: Int) {
         let next = transcriptHistoryArchive(history, removing: historyIndex)
         guard next != history else { return }
         history = next
         settings.recentTranscriptEntries = history
+        clampHistoryOverlayPage()
         log("history entry deleted from overlay (\(visibleHistory.count) visible, \(history.count) archived)")
         rebuildMenu()
         showHistoryOverlay()
@@ -13272,6 +13585,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !history.isEmpty else { return }
         let count = history.count
         history.removeAll()
+        historyOverlayPage = 0
         settings.recentTranscriptEntries = []
         log("history cleared from overlay (\(count) entries)")
         rebuildMenu()
@@ -13298,6 +13612,12 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                       self.historyOverlayAnimationToken == token else { return }
                 panel.orderOut(nil)
                 panel.alphaValue = 1
+                if self.audioFileTranscriptionState?.isRunning == false {
+                    self.audioFileTranscriptionState = nil
+                    self.audioFileTranscriptionProgressIndicator = nil
+                    self.audioFileTranscriptionTitleLabel = nil
+                    self.audioFileTranscriptionDetailLabel = nil
+                }
             }
         }
     }
@@ -13357,6 +13677,157 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSEvent.removeMonitor(monitor)
             historyOverlayLocalDismissMonitor = nil
         }
+    }
+
+    @objc private func transcribeAudioFilesFromHistoryOverlayClicked(_ sender: Any) {
+        guard audioFileTranscriptionTask == nil else {
+            if settings.playFeedbackSounds { Sounds.playError() }
+            return
+        }
+        guard isReady, !isRecording, !isBusy, !isTerminating else {
+            flashErrorFeedback()
+            return
+        }
+
+        closeHistoryOverlay()
+        let panel = NSOpenPanel()
+        panel.title = "Транскрибировать аудиофайлы"
+        panel.message = "Выберите один или несколько аудиофайлов. Результаты сохранятся как .txt."
+        panel.prompt = "Транскрибировать"
+        panel.allowedContentTypes = [.audio]
+        panel.allowsMultipleSelection = true
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.resolvesAliases = true
+        panel.begin { [weak self] response in
+            Task { @MainActor in
+                guard response == .OK, let self else { return }
+                let urls = panel.urls.filter { $0.isFileURL }
+                guard !urls.isEmpty else { return }
+                self.startAudioFileTranscription(urls)
+            }
+        }
+    }
+
+    private func startAudioFileTranscription(_ urls: [URL]) {
+        guard audioFileTranscriptionTask == nil,
+              isReady, !isRecording, !isBusy, !isTerminating,
+              !urls.isEmpty else { return }
+
+        let outputDirectory = URL(
+            fileURLWithPath: settings.audioFileTranscriptionOutputDirectory,
+            isDirectory: true
+        ).standardizedFileURL
+        audioFileTranscriptionGeneration += 1
+        let generation = audioFileTranscriptionGeneration
+        audioFileTranscriptionState = AudioFileTranscriptionProgressState(totalCount: urls.count)
+        isBusy = true
+        setMenuBarState(.busy)
+        rebuildMenu()
+        showHistoryOverlay()
+        log("audio file transcription started (\(urls.count) files → \(outputDirectory.path))")
+
+        audioFileTranscriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try FileManager.default.createDirectory(at: outputDirectory,
+                                                        withIntermediateDirectories: true)
+            } catch {
+                self.finishAudioFileTranscription(
+                    generation: generation,
+                    directoryError: error.localizedDescription
+                )
+                return
+            }
+
+            for (index, url) in urls.enumerated() {
+                guard !Task.isCancelled,
+                      self.audioFileTranscriptionGeneration == generation else { return }
+                self.audioFileTranscriptionState?.currentFileName = url.lastPathComponent
+                self.audioFileTranscriptionState?.currentFileProgress = nil
+                self.refreshAudioFileTranscriptionProgressUI()
+
+                do {
+                    let requestedAt = ProcessInfo.processInfo.systemUptime
+                    let transcription = try await self.asr.transcribe(
+                        fileURL: url,
+                        language: self.settings.dictationLanguage.fluidLanguage,
+                        requestedAt: requestedAt,
+                        progressHandler: { [weak self] progress in
+                            Task { @MainActor in
+                                guard let self,
+                                      self.audioFileTranscriptionGeneration == generation,
+                                      self.audioFileTranscriptionState?.completedCount == index else { return }
+                                self.audioFileTranscriptionState?.currentFileProgress = progress
+                                self.refreshAudioFileTranscriptionProgressUI()
+                            }
+                        }
+                    )
+                    let processed = processedDictationText(
+                        rawTranscript: transcription.text,
+                        corrections: self.settings.transcriptCorrections,
+                        removeFillerWords: self.settings.removeFillerWords,
+                        removeFinalPeriod: self.settings.removeFinalPeriod,
+                        language: self.settings.dictationLanguage
+                    ).text
+                    guard !processed.isEmpty else {
+                        throw NSError(
+                            domain: "SuperDictate.AudioFileTranscription",
+                            code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: "Speech was not recognized."]
+                        )
+                    }
+                    let outputURL = availableTranscriptOutputURL(for: url,
+                                                                 in: outputDirectory)
+                    try (processed + "\n").write(to: outputURL,
+                                                   atomically: true,
+                                                   encoding: .utf8)
+                    self.audioFileTranscriptionState?.savedURLs.append(outputURL)
+                    log("audio file transcribed: \(url.lastPathComponent) → \(outputURL.lastPathComponent)")
+                } catch {
+                    self.audioFileTranscriptionState?.failedFileNames.append(url.lastPathComponent)
+                    log("audio file transcription failed for \(url.lastPathComponent): \(error.localizedDescription)")
+                }
+
+                self.audioFileTranscriptionState?.completedCount = index + 1
+                self.audioFileTranscriptionState?.currentFileProgress = nil
+                self.refreshAudioFileTranscriptionProgressUI()
+            }
+
+            self.finishAudioFileTranscription(generation: generation)
+        }
+    }
+
+    private func finishAudioFileTranscription(generation: Int,
+                                              directoryError: String? = nil) {
+        guard audioFileTranscriptionGeneration == generation else { return }
+        if let directoryError {
+            audioFileTranscriptionState?.failedFileNames = [directoryError]
+        }
+        audioFileTranscriptionState?.isRunning = false
+        audioFileTranscriptionState?.currentFileProgress = nil
+        audioFileTranscriptionTask = nil
+        isBusy = false
+        setMenuBarState(.idle)
+        rebuildMenu()
+        if historyOverlayPresented {
+            showHistoryOverlay()
+        }
+        let savedCount = audioFileTranscriptionState?.savedURLs.count ?? 0
+        let failedCount = audioFileTranscriptionState?.failedFileNames.count ?? 0
+        if settings.playFeedbackSounds {
+            savedCount > 0 ? Sounds.playDone() : Sounds.playError()
+        }
+        log("audio file transcription finished (\(savedCount) saved, \(failedCount) failed)")
+        let didRestartAudio = runDeferredAudioRouteRefreshIfNeeded()
+        if !didRestartAudio {
+            scheduleAudioIdleStop(reason: "audio file transcription finished")
+        }
+    }
+
+    @objc private func revealAudioFileTranscriptionsClicked(_ sender: Any) {
+        guard let url = audioFileTranscriptionState?.savedURLs.first else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     @objc private func showStatisticsFromHistoryOverlayClicked(_ sender: Any) {
@@ -16794,6 +17265,8 @@ private enum ParakeySelfTest {
             return runSuite("audio-conversion", testAudioConversion)
         case "audio-input":
             return runSuite("audio-input", testAudioInputDeviceFiltering)
+        case "audio-files":
+            return runSuite("audio-files", testAudioFileTranscriptionOutput)
         case "audio-input-live":
             return runSuite("audio-input-live", testLiveAudioInputEnumeration)
         case "model-status":
@@ -16853,6 +17326,7 @@ private enum ParakeySelfTest {
         try testAudioLevelMetering()
         try testAudioConversion()
         try testAudioInputDeviceFiltering()
+        try testAudioFileTranscriptionOutput()
         try testSpeechModelStartupStatus()
         try testAudioRouteChangeDecision()
         try testRecordingLifecycle()
@@ -18234,6 +18708,21 @@ private enum ParakeySelfTest {
             equals: archivedEntries,
             "an invalid history deletion index should leave the archive unchanged"
         )
+        try expect(
+            transcriptHistoryPageRange(itemCount: 12, requestedPage: 0),
+            equals: 0..<5,
+            "the first history page should contain the newest five archive entries"
+        )
+        try expect(
+            transcriptHistoryPageRange(itemCount: 12, requestedPage: 2),
+            equals: 10..<12,
+            "the last partial history page should preserve archive indices"
+        )
+        try expect(
+            transcriptHistoryPageRange(itemCount: 12, requestedPage: 99),
+            equals: 10..<12,
+            "an out-of-range history page should clamp to the last page"
+        )
 
         let historyRowHitTargets = MainActor.assumeIsolated { () -> (delete: Bool, row: Bool, deleteAction: Bool, copyAction: Bool) in
             let row = HistoryTranscriptItemView(
@@ -18608,6 +19097,39 @@ private enum ParakeySelfTest {
               converted.frameLength > 0 else {
             throw SelfTestFailure.failed("audio conversion should produce 16 kHz mono samples")
         }
+    }
+
+    private static func testAudioFileTranscriptionOutput() throws {
+        let suiteName = "com.local.superdictate.self-test.audio-files.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            throw SelfTestFailure.failed("could not create isolated audio-file defaults")
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let isolatedSettings = Settings(defaults: defaults)
+        try expect(isolatedSettings.audioFileTranscriptionOutputDirectory,
+                   equals: defaultAudioFileTranscriptionOutputDirectoryURL().path,
+                   "audio-file transcription should default to Desktop")
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("superdictate-audio-files-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory,
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        isolatedSettings.audioFileTranscriptionOutputDirectory = directory.path + "/"
+        try expect(isolatedSettings.audioFileTranscriptionOutputDirectory,
+                   equals: directory.standardizedFileURL.path,
+                   "audio-file output directory should be standardized")
+
+        let audioURL = directory.appendingPathComponent("Meeting.m4a")
+        let first = availableTranscriptOutputURL(for: audioURL, in: directory)
+        try expect(first.lastPathComponent,
+                   equals: "Meeting.txt",
+                   "audio-file transcript should reuse the source base name")
+        try "existing".write(to: first, atomically: true, encoding: .utf8)
+        let second = availableTranscriptOutputURL(for: audioURL, in: directory)
+        try expect(second.lastPathComponent,
+                   equals: "Meeting 2.txt",
+                   "audio-file transcript should never overwrite an existing result")
     }
 
     private static func testTranscriptCorrections() throws {
@@ -21837,6 +22359,7 @@ private struct ControlPanelSettingsDraft: Equatable {
     var aiCleanupBaseURL: String
     var aiCleanupModel: String
     var inputDevicePreference: String
+    var audioFileTranscriptionOutputDirectory: String
     var removeFinalPeriod: Bool
     var recordingColor: RecordingHUDAccentColor
     var transcribingColor: RecordingHUDAccentColor
@@ -21855,6 +22378,7 @@ private struct ControlPanelSettingsDraft: Equatable {
         aiCleanupModel = settings.aiCleanupModel
         let savedInput = settings.inputDevice
         inputDevicePreference = audioInputDevice(matching: savedInput)?.uid ?? savedInput
+        audioFileTranscriptionOutputDirectory = settings.audioFileTranscriptionOutputDirectory
         removeFinalPeriod = settings.removeFinalPeriod
         recordingColor = settings.recordingHUDRecordingColor
         transcribingColor = settings.recordingHUDTranscribingColor
@@ -22186,6 +22710,8 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
             toolTip: t("Открыть или закрыть последние транскрипции.",
                        "Open or close recent transcriptions.")
         ))
+        root.addArrangedSubview(separator())
+        root.addArrangedSubview(audioFileOutputDirectoryRow(draft))
         root.addArrangedSubview(separator())
         root.addArrangedSubview(microphoneSettingsRow(draft))
         root.addArrangedSubview(separator())
@@ -23178,6 +23704,43 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         return section
     }
 
+    private func audioFileOutputDirectoryRow(_ draft: ControlPanelSettingsDraft) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 14
+
+        let text = NSStackView()
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 3
+        text.addArrangedSubview(panelLabel(t("Транскрибация аудиофайлов", "Audio file transcription"),
+                                           size: 13,
+                                           weight: .semibold))
+        let abbreviatedPath = (draft.audioFileTranscriptionOutputDirectory as NSString)
+            .abbreviatingWithTildeInPath
+        let detail = panelLabel(
+            t("Текстовые файлы сохраняются в \(abbreviatedPath).",
+              "Text files are saved to \(abbreviatedPath)."),
+            size: 12,
+            color: .secondaryLabelColor
+        )
+        detail.maximumNumberOfLines = 2
+        detail.lineBreakMode = .byTruncatingMiddle
+        detail.toolTip = draft.audioFileTranscriptionOutputDirectory
+        text.addArrangedSubview(detail)
+
+        row.addArrangedSubview(text)
+        row.addArrangedSubview(NSView())
+        row.addArrangedSubview(panelButton(
+            t("Изменить…", "Change…"),
+            action: #selector(chooseAudioFileOutputDirectoryClicked(_:)),
+            toolTip: t("Выбрать папку для готовых .txt-файлов.",
+                       "Choose where completed .txt files are saved.")
+        ))
+        return row
+    }
+
     private func microphoneSettingsRow(_ draft: ControlPanelSettingsDraft) -> NSView {
         let devices = availableAudioInputDevices()
         let preference = draft.inputDevicePreference
@@ -24120,6 +24683,33 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         refreshSettingsWindow()
     }
 
+    @objc private func chooseAudioFileOutputDirectoryClicked(_ sender: NSButton) {
+        guard let settingsWindow else { return }
+        let draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
+        let panel = NSOpenPanel()
+        panel.title = t("Папка для транскрипций", "Transcription Output Folder")
+        panel.message = t("Готовые .txt-файлы будут сохраняться в эту папку.",
+                          "Completed .txt files will be saved in this folder.")
+        panel.prompt = t("Выбрать", "Choose")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: draft.audioFileTranscriptionOutputDirectory,
+                                 isDirectory: true)
+        panel.beginSheetModal(for: settingsWindow) { [weak self] response in
+            Task { @MainActor in
+                guard response == .OK,
+                      let self,
+                      let selected = panel.url else { return }
+                var next = self.settingsDraft ?? ControlPanelSettingsDraft(settings: self.settings)
+                next.audioFileTranscriptionOutputDirectory = selected.standardizedFileURL.path
+                self.settingsDraft = next
+                self.refreshSettingsWindow()
+            }
+        }
+    }
+
     @objc private func selectRecordingHUDSize(_ sender: NSPopUpButton) {
         guard let raw = sender.selectedItem?.representedObject as? String,
               let size = RecordingHUDSize(rawValue: raw) else { return }
@@ -24287,6 +24877,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         settings.aiCleanupBaseURL = draft.aiCleanupBaseURL
         settings.aiCleanupModel = draft.aiCleanupModel
         settings.inputDevice = draft.inputDevicePreference
+        settings.audioFileTranscriptionOutputDirectory = draft.audioFileTranscriptionOutputDirectory
         settings.removeFinalPeriod = draft.removeFinalPeriod
         settings.recordingHUDRecordingColor = draft.recordingColor
         settings.recordingHUDTranscribingColor = draft.transcribingColor
@@ -24303,6 +24894,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         )
         lastRenderFingerprint = ""
         refresh(force: true)
+        settingsWindow?.performClose(sender)
     }
 
     private func captureAISettingsFields() {
