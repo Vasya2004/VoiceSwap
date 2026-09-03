@@ -100,6 +100,7 @@ let HOTKEY_CAPTURE_BEGIN_NOTIFICATION = Notification.Name("com.local.superdictat
 let HOTKEY_CAPTURE_END_NOTIFICATION = Notification.Name("com.local.superdictate.hotkey-capture-end")
 let SETTINGS_CHANGED_NOTIFICATION = Notification.Name("com.local.superdictate.settings-changed")
 let HOTKEY_CAPTURE_FAILSAFE_SECONDS: TimeInterval = 45
+let HISTORY_HOTKEY_DEBOUNCE_SECONDS: TimeInterval = 0.25
 let DICTATION_ERROR_FLASH_SECONDS: TimeInterval = 1.5  // how long the menu-bar icon flags a dropped dictation before returning to idle
 let AUDIO_START_RETRY_DELAYS_SECONDS: [UInt64] = [1, 3, 8]
 let AUDIO_IDLE_STOP_DELAY_SECONDS: TimeInterval = 5
@@ -4282,6 +4283,20 @@ private struct HotkeyTransitionResult: Equatable, Sendable {
 
     static let pass = HotkeyTransitionResult(suppress: false, actions: [])
     static let suppressOnly = HotkeyTransitionResult(suppress: true, actions: [])
+}
+
+private struct RepeatedTriggerGate {
+    private var lastAcceptedAt: TimeInterval?
+
+    mutating func accept(at now: TimeInterval, minimumInterval: TimeInterval) -> Bool {
+        if let lastAcceptedAt,
+           now >= lastAcceptedAt,
+           now - lastAcceptedAt < minimumInterval {
+            return false
+        }
+        lastAcceptedAt = now
+        return true
+    }
 }
 
 private enum HotkeyShortcutEdge: Equatable {
@@ -10753,6 +10768,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var historyOverlayPresented = false
     private var historyOverlayGlobalDismissMonitor: Any?
     private var historyOverlayLocalDismissMonitor: Any?
+    private var historyHotkeyGate = RepeatedTriggerGate()
     private var historyOverlayRows: [HistoryTranscriptItemView] = []
     private var historyOverlayPage = 0
     private let historyOverlayPageSize = 5
@@ -10971,11 +10987,6 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openControlPanelFromAgent()
         return true
-    }
-
-    func applicationDidResignActive(_ notification: Notification) {
-        closeHistoryOverlay()
-        closeStatisticsOverlay()
     }
 
     private func openControlPanelFromAgent() {
@@ -13349,6 +13360,12 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func toggleHistoryOverlay() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard historyHotkeyGate.accept(at: now,
+                                       minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS) else {
+            log("history overlay ignored duplicate hotkey trigger")
+            return
+        }
         if statisticsOverlayPresented {
             closeStatisticsOverlay()
             log("statistics overlay closed from hotkey")
@@ -18056,6 +18073,7 @@ private enum ParakeySelfTest {
         try testConfigurableEnterShortcut()
         try testFKeyAutoRepeatSuppressesWithoutAction()
         try testRightModifierReleaseWithLeftFlagStillSet()
+        try testRepeatedHistoryTriggerDebounce()
         try testHistoryChordShowsOverlay()
         try testConfigurableHistoryShortcut()
         try testOptionCommandEnterChordStopsWithEnter()
@@ -22005,6 +22023,26 @@ private enum ParakeySelfTest {
             equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
             "right Option should stop instead of being swallowed by the Enter chord"
         )
+    }
+
+    private static func testRepeatedHistoryTriggerDebounce() throws {
+        var gate = RepeatedTriggerGate()
+        try expect(gate.accept(at: 10,
+                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
+                   equals: true,
+                   "the first history trigger should be accepted")
+        try expect(gate.accept(at: 10.01,
+                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
+                   equals: false,
+                   "an immediate duplicate history trigger should be ignored")
+        try expect(gate.accept(at: 10.249,
+                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
+                   equals: false,
+                   "history trigger debounce should cover the full interval")
+        try expect(gate.accept(at: 10.25,
+                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
+                   equals: true,
+                   "a deliberate later history trigger should be accepted")
     }
 
     private static func testHistoryChordShowsOverlay() throws {
