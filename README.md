@@ -8,7 +8,7 @@
 2. Вставьте эту команду и нажмите Enter:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.42/install.sh | /usr/bin/arch -arm64 /bin/bash
 ```
 
 3. В открывшемся SuperDictate нажмите `Разрешить` для **Микрофона**,
@@ -16,9 +16,11 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.
 4. Дождитесь статуса `Работает`, нажмите **правый Command** и говорите.
    Нажмите **правый Command** ещё раз, чтобы вставить текст.
 
-При первом запуске один раз загрузится локальная модель распознавания. На
-диске она занимает около 460 МБ; для установки лучше иметь не менее 1 ГБ
-свободного места. После загрузки интернет для диктовки не нужен.
+Установщик сразу скачивает с GitHub и проверяет локальную модель распознавания,
+показывая прогресс в Terminal. Поэтому после открытия приложения остаётся
+только выдать три разрешения и дождаться подготовки Neural Engine. Модель
+занимает около 460 МБ; для установки лучше иметь не менее 2 ГБ свободного
+места. После установки интернет для диктовки не нужен.
 
 SuperDictate — быстрая локальная диктовка для macOS. Аудио и расшифровка не
 отправляются в облачный API. Единственное исключение — необязательная AI-чистка
@@ -128,11 +130,15 @@ macOS не разрешает приложению выдать их самом�
 
 Установщик:
 
-1. Загружает `SuperDictate.zip` из
+1. Загружает `SuperDictate.zip` и закреплённую модель
+   `SuperDictate-Model-v3.zip` из
    [GitHub Releases](https://github.com/shlgd/SuperDictate/releases).
-2. Проверяет закреплённую SHA-256, версию, bundle ID, архитектуру arm64,
-   подпись и microphone-entitlements.
-3. Безопасно заменяет `/Applications/SuperDictate.app` и открывает панель.
+2. Показывает прогресс обеих загрузок прямо в Terminal. Если проверенная модель
+   уже установлена, повторно её не скачивает.
+3. Проверяет закреплённые SHA-256, содержимое модели, версию, bundle ID,
+   архитектуру arm64, подпись и microphone-entitlements.
+4. Атомарно устанавливает модель, безопасно заменяет
+   `/Applications/SuperDictate.app` и открывает панель.
 
 Xcode и Command Line Tools для обычной установки не нужны. История, настройки
 и уже загруженная модель при обновлении сохраняются.
@@ -158,7 +164,7 @@ Xcode и Command Line Tools для обычной установки не нуж
 Эта же команда остаётся запасным способом для любой версии:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.42/install.sh | /usr/bin/arch -arm64 /bin/bash
 ```
 
 Приложение само не устанавливает обновления в фоне: запуск обновления всегда
@@ -172,7 +178,7 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.
 результат в `/Applications`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/install.sh | SUPERDICTATE_BUILD_FROM_SOURCE=1 /usr/bin/arch -arm64 /bin/bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.42/install.sh | SUPERDICTATE_BUILD_FROM_SOURCE=1 /usr/bin/arch -arm64 /bin/bash
 ```
 
 Понадобятся бесплатные Apple Command Line Tools. Если их нет, установщик
@@ -230,9 +236,10 @@ GitHub Actions повторяет самотесты, собирает bundle, �
 - Из-за отсутствия стабильной Developer ID подписи macOS иногда повторно
   запрашивает разрешения после обновления. Нотаризация требует платного
   аккаунта Apple Developer.
-- Первый запуск требует интернет для загрузки модели. Панель проверяет
-  обновления при открытии; фоновая автопроверка, если включена, обращается к
-  публичному GitHub API раз в шесть часов.
+- Установка требует доступа к GitHub Releases, откуда одной командой
+  загружаются приложение и модель. Первый запуск модели уже не зависит от
+  Hugging Face. Панель проверяет обновления при открытии; фоновая автопроверка,
+  если включена, обращается к публичному GitHub API раз в шесть часов.
 - Одна запись автоматически завершается через 20 минут. При аварийном
   завершении незаконченная запись сохраняется для восстановления истории.
 - Защищённые поля паролей и приложения, которые скрывают Accessibility-данные,
@@ -256,7 +263,7 @@ GitHub Actions повторяет самотесты, собирает bundle, �
 ## Удаление
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.42/uninstall.sh | bash
 ```
 
 Приложение и фоновая служба удаляются. История, настройки и модель сохраняются,
@@ -267,4 +274,5 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/v0.2.41/uninstal
 SuperDictate основан на открытом проекте
 [Parakey](https://github.com/rcourtman/parakey) Richard Courtman. Исходный и
 изменённый код распространяется по лицензии MIT. См. [LICENSE](LICENSE) и
-[NOTICE.md](NOTICE.md).
+[NOTICE.md](NOTICE.md). Атрибуция модели, распространяемой отдельным release
+asset, находится в [MODEL_ATTRIBUTION.md](MODEL_ATTRIBUTION.md).

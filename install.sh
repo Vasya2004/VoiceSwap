@@ -3,16 +3,23 @@
 set -euo pipefail
 
 REPOSITORY="${SUPERDICTATE_REPOSITORY:-shlgd/SuperDictate}"
-RELEASE_VERSION="0.2.41"
-RELEASE_SHA256="4fe1292b860e8c1d59020c626b47881cf97899995b01872dc92a69628509c5f0"
-SOURCE_COMMIT="c74e513b9d38dd7bf93a709ae5442860098298b6"
+RELEASE_VERSION="0.2.42"
+RELEASE_SHA256="132774d12404f24c397e25ac9b7d932b6802ee92b06105ad413984ed24deca0b"
+SOURCE_COMMIT="31723564f3b9b6f5bbf2c4b985ae4382baac0491"
 RELEASE_URL="${SUPERDICTATE_RELEASE_URL:-https://github.com/$REPOSITORY/releases/download/v$RELEASE_VERSION/SuperDictate.zip}"
 EXPECTED_SHA256="${SUPERDICTATE_RELEASE_SHA256:-$RELEASE_SHA256}"
+MODEL_RELEASE_SHA256="10ec50a74ba886ba85907112c48c24b1d79c727682e50665ef798b1a97a6d773"
+MODEL_CONTENT_SHA256="66e79161c28717a7869b552453eab474975e801ba5dee28a964d79f952690dff"
+MODEL_ASSET_NAME="SuperDictate-Model-v3.zip"
+MODEL_RELEASE_URL="${SUPERDICTATE_MODEL_URL:-https://github.com/$REPOSITORY/releases/download/v$RELEASE_VERSION/$MODEL_ASSET_NAME}"
+EXPECTED_MODEL_SHA256="${SUPERDICTATE_MODEL_SHA256:-$MODEL_RELEASE_SHA256}"
+MODEL_CACHE_DIR="${SUPERDICTATE_MODEL_DIR:-$HOME/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3}"
 REF="${SUPERDICTATE_REF:-$SOURCE_COMMIT}"
 EXPECTED_SOURCE_COMMIT="${SUPERDICTATE_SOURCE_COMMIT:-$SOURCE_COMMIT}"
 APP_PATH="${SUPERDICTATE_APP_PATH:-/Applications/SuperDictate.app}"
 BUILD_FROM_SOURCE="${SUPERDICTATE_BUILD_FROM_SOURCE:-0}"
 NO_OPEN="${SUPERDICTATE_NO_OPEN:-0}"
+SKIP_MODEL_INSTALL="${SUPERDICTATE_SKIP_MODEL_INSTALL:-0}"
 AGENT_LABEL="com.local.superdictate.agent"
 
 say() {
@@ -22,6 +29,19 @@ say() {
 fail() {
     printf '\033[1;31mSuperDictate:\033[0m %s\n' "$*" >&2
     exit 1
+}
+
+download_with_progress() {
+    local label="$1"
+    local url="$2"
+    local output="$3"
+
+    say "$label"
+    curl --fail --location --show-error --progress-bar \
+        --retry 3 --retry-delay 1 --retry-all-errors \
+        --connect-timeout 20 --speed-limit 1024 --speed-time 60 \
+        "$url" \
+        -o "$output"
 }
 
 version_at_least_14() {
@@ -76,10 +96,7 @@ download_release() {
     local archive="$work_dir/SuperDictate.zip"
     local actual
 
-    say "Скачиваю готовую сборку $RELEASE_VERSION..."
-    curl --fail --location --silent --show-error --retry 3 --retry-delay 1 --retry-all-errors \
-        "$RELEASE_URL" \
-        -o "$archive"
+    download_with_progress "Скачиваю SuperDictate $RELEASE_VERSION..." "$RELEASE_URL" "$archive"
 
     actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
     [[ "$actual" == "$EXPECTED_SHA256" ]] || fail "Контрольная сумма загрузки не совпала."
@@ -87,6 +104,139 @@ download_release() {
     ditto -x -k "$archive" "$work_dir/release"
     [[ -d "$work_dir/release/SuperDictate.app" ]] || fail "В релизе нет SuperDictate.app."
     ditto "$work_dir/release/SuperDictate.app" "$work_dir/SuperDictate.app"
+}
+
+model_content_sha256() {
+    local model_dir="$1"
+    local file_manifest="$WORK_DIR/model-files.sha256"
+    local file_count
+
+    [[ -d "$model_dir" && ! -L "$model_dir" ]] || return 1
+    for required in \
+        Decoder.mlmodelc \
+        Encoder.mlmodelc \
+        JointDecisionv3.mlmodelc \
+        Preprocessor.mlmodelc; do
+        [[ -d "$model_dir/$required" && ! -L "$model_dir/$required" ]] || return 1
+    done
+    [[ -f "$model_dir/parakeet_vocab.json" && ! -L "$model_dir/parakeet_vocab.json" ]] || return 1
+
+    if find \
+        "$model_dir/Decoder.mlmodelc" \
+        "$model_dir/Encoder.mlmodelc" \
+        "$model_dir/JointDecisionv3.mlmodelc" \
+        "$model_dir/Preprocessor.mlmodelc" \
+        ! -type d ! -type f -print -quit | grep -q .; then
+        return 1
+    fi
+
+    (
+        cd "$model_dir"
+        {
+            find \
+                Decoder.mlmodelc \
+                Encoder.mlmodelc \
+                JointDecisionv3.mlmodelc \
+                Preprocessor.mlmodelc \
+                -type f -print
+            printf '%s\n' parakeet_vocab.json
+        } | LC_ALL=C sort | while IFS= read -r model_file; do
+            /usr/bin/shasum -a 256 "$model_file"
+        done
+    ) > "$file_manifest" || return 1
+
+    file_count="$(wc -l < "$file_manifest" | tr -d '[:space:]')"
+    [[ "$file_count" == "21" ]] || return 1
+    /usr/bin/shasum -a 256 "$file_manifest" | awk '{print $1}'
+}
+
+verify_model_directory() {
+    local model_dir="$1"
+    local actual
+
+    actual="$(model_content_sha256 "$model_dir")" || return 1
+    [[ "$actual" == "$MODEL_CONTENT_SHA256" ]]
+}
+
+assert_sufficient_model_disk_space() {
+    local available_kb
+    local required_kb=$((2 * 1024 * 1024))
+
+    available_kb="$(df -Pk "$HOME" | awk 'END {print $4}')"
+    if [[ "$available_kb" =~ ^[0-9]+$ ]] && (( available_kb < required_kb )); then
+        fail "Для безопасной установки модели нужно не менее 2 ГБ свободного места."
+    fi
+}
+
+validate_model_cache_path() {
+    local parent
+
+    [[ "$(basename "$MODEL_CACHE_DIR")" == "parakeet-tdt-0.6b-v3" ]] || \
+        fail "Небезопасный путь установки модели: $MODEL_CACHE_DIR"
+    parent="$(dirname "$MODEL_CACHE_DIR")"
+    [[ "$MODEL_CACHE_DIR" != "/" && "$parent" != "/" && "$parent" != "$HOME" ]] || \
+        fail "Небезопасный путь установки модели: $MODEL_CACHE_DIR"
+}
+
+install_model_atomically() {
+    local source_dir="$1"
+    local parent incoming backup
+
+    validate_model_cache_path
+    parent="$(dirname "$MODEL_CACHE_DIR")"
+    incoming="$parent/.parakeet-tdt-0.6b-v3.incoming.$$"
+    backup="$parent/.parakeet-tdt-0.6b-v3.previous.$$"
+
+    mkdir -p "$parent"
+    rm -rf "$incoming" "$backup"
+    ditto "$source_dir" "$incoming"
+    verify_model_directory "$incoming" || fail "Распакованная модель не прошла проверку файлов."
+
+    if [[ -e "$MODEL_CACHE_DIR" ]]; then
+        mv "$MODEL_CACHE_DIR" "$backup"
+    fi
+    if ! mv "$incoming" "$MODEL_CACHE_DIR"; then
+        if [[ -e "$backup" ]]; then
+            mv "$backup" "$MODEL_CACHE_DIR"
+        fi
+        fail "Не удалось установить модель; предыдущая копия восстановлена."
+    fi
+    rm -rf "$backup"
+}
+
+ensure_speech_model() {
+    local work_dir="$1"
+    local archive="$work_dir/$MODEL_ASSET_NAME"
+    local extracted="$work_dir/model-release"
+    local source_dir="$extracted/parakeet-tdt-0.6b-v3"
+    local actual
+
+    if [[ "$SKIP_MODEL_INSTALL" == "1" ]]; then
+        say "Тестовый режим: установка модели пропущена."
+        return
+    fi
+
+    say "Проверяю локальную модель распознавания..."
+    if verify_model_directory "$MODEL_CACHE_DIR"; then
+        say "Модель уже установлена и проверена — повторная загрузка не нужна."
+        return
+    fi
+
+    assert_sufficient_model_disk_space
+    download_with_progress \
+        "Скачиваю локальную модель с GitHub (около 460 МБ)..." \
+        "$MODEL_RELEASE_URL" \
+        "$archive"
+    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+    [[ "$actual" == "$EXPECTED_MODEL_SHA256" ]] || fail "Контрольная сумма модели не совпала."
+
+    say "Проверяю и устанавливаю локальную модель..."
+    mkdir -p "$extracted"
+    ditto -x -k "$archive" "$extracted"
+    [[ -d "$source_dir" ]] || fail "В архиве нет каталога модели parakeet-tdt-0.6b-v3."
+    verify_model_directory "$source_dir" || fail "Файлы модели не прошли проверку целостности."
+    install_model_atomically "$source_dir"
+    say "Модель установлена. При запуске повторное скачивание не потребуется."
 }
 
 verify_source_ref() {
@@ -145,6 +295,7 @@ else
 fi
 
 verify_app "$WORK_DIR/SuperDictate.app"
+ensure_speech_model "$WORK_DIR"
 say "Устанавливаю приложение в $APP_PATH..."
 
 if [[ "$APP_PATH" == "/Applications/SuperDictate.app" ]]; then
@@ -178,6 +329,6 @@ else
     say "Готово. Открываю SuperDictate..."
     open "$APP_PATH"
     printf '\n1. Нажмите «Разрешить» для микрофона, универсального доступа и мониторинга ввода.\n'
-    printf '2. Дождитесь загрузки локальной модели и статуса «Работает».\n'
+    printf '2. Дождитесь подготовки Neural Engine и статуса «Работает» — модель уже установлена.\n'
     printf '3. Нажмите правый Command и начинайте говорить.\n\n'
 fi

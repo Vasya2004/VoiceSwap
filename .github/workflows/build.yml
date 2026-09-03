@@ -31,6 +31,7 @@ jobs:
           checksum="$(shasum -a 256 "$RUNNER_TEMP/release/SuperDictate.zip" | awk '{print $1}')"
           SUPERDICTATE_RELEASE_URL="file://$RUNNER_TEMP/release/SuperDictate.zip" \
           SUPERDICTATE_RELEASE_SHA256="$checksum" \
+          SUPERDICTATE_SKIP_MODEL_INSTALL=1 \
           SUPERDICTATE_NO_OPEN=1 \
             ./install.sh
           test -x /Applications/SuperDictate.app/Contents/MacOS/SuperDictate

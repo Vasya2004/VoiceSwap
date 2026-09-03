@@ -5,12 +5,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-bash -n install.sh uninstall.sh scripts/build-app.sh scripts/check.sh
+bash -n install.sh uninstall.sh scripts/build-app.sh scripts/check.sh scripts/package-model.sh
 plutil -lint swift/Info.plist entitlements.plist
 
 app_version="$(plutil -extract CFBundleShortVersionString raw -o - swift/Info.plist)"
 installer_version="$(sed -n 's/^RELEASE_VERSION="\([^"]*\)"$/\1/p' install.sh)"
 installer_sha256="$(sed -n 's/^RELEASE_SHA256="\([^"]*\)"$/\1/p' install.sh)"
+installer_model_sha256="$(sed -n 's/^MODEL_RELEASE_SHA256="\([^"]*\)"$/\1/p' install.sh)"
+installer_model_content_sha256="$(sed -n 's/^MODEL_CONTENT_SHA256="\([^"]*\)"$/\1/p' install.sh)"
 manifest_version="$(plutil -extract version raw -o - update.json)"
 manifest_sha256="$(plutil -extract sha256 raw -o - update.json)"
 [[ -n "$installer_version" && "$app_version" == "$installer_version" ]] || {
@@ -23,6 +25,14 @@ manifest_sha256="$(plutil -extract sha256 raw -o - update.json)"
 }
 [[ "$manifest_sha256" == "$installer_sha256" && "$manifest_sha256" =~ ^[0-9a-f]{64}$ ]] || {
     printf 'Checksum mismatch: install.sh=%s update.json=%s\n' "$installer_sha256" "$manifest_sha256" >&2
+    exit 1
+}
+[[ "$installer_model_sha256" =~ ^[0-9a-f]{64}$ ]] || {
+    printf 'Invalid model archive checksum: %s\n' "$installer_model_sha256" >&2
+    exit 1
+}
+[[ "$installer_model_content_sha256" =~ ^[0-9a-f]{64}$ ]] || {
+    printf 'Invalid model content checksum: %s\n' "$installer_model_content_sha256" >&2
     exit 1
 }
 
@@ -38,6 +48,10 @@ grep -q 'sysctl.proc_translated' install.sh
 grep -q 'is_apple_silicon' install.sh
 grep -q 'Restarting the build natively for Apple Silicon' scripts/build-app.sh
 grep -q 'validate_output_app_path "$OUTPUT_APP"' scripts/build-app.sh
+grep -q 'MODEL_ASSET_NAME="SuperDictate-Model-v3.zip"' install.sh
+grep -q 'download_with_progress' install.sh
+grep -q 'ensure_speech_model "$WORK_DIR"' install.sh
+grep -q 'EXPECTED_CONTENT_SHA256=' scripts/package-model.sh
 
 settings_save_handler="$(sed -n '/@objc private func saveSettingsClicked/,/private func captureAISettingsFields/p' swift/Sources/Parakey/main.swift)"
 grep -Fq 'settingsWindow?.performClose(sender)' <<<"$settings_save_handler" || {
