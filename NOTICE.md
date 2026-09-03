@@ -13,3 +13,7 @@ The Parakeet speech model is loaded through
 [FluidAudio](https://github.com/FluidInference/FluidAudio). Third-party Swift
 package licenses remain available through their respective upstream projects.
 
+The optional `SuperDictate-Model-v3.zip` release asset redistributes the
+runtime Core ML subset of NVIDIA Parakeet TDT 0.6B v3 converted by
+FluidInference. It is licensed under CC BY 4.0. Full attribution and the pinned
+upstream revision are recorded in [MODEL_ATTRIBUTION.md](MODEL_ATTRIBUTION.md).

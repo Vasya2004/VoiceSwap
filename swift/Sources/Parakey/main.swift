@@ -7447,7 +7447,7 @@ private enum KeyboardShortcutPoster {
 
 @MainActor
 enum TextInserter {
-    nonisolated static let defaultStrategy = TextInsertionStrategy.clipboardPaste
+    nonisolated static let defaultStrategy = TextInsertionStrategy.directUnicode
 
     nonisolated static var defaultStrategyDescription: String {
         textInsertionStrategyDescription(primary: defaultStrategy)
@@ -7478,10 +7478,80 @@ enum TextInserter {
 }
 
 @MainActor
+private final class FocusedTextChangeObserver {
+    private static let messagingTimeout: Float = 0.3
+    private let applicationPID: pid_t
+    private let initialValue: String
+
+    private init(applicationPID: pid_t, initialValue: String) {
+        self.applicationPID = applicationPID
+        self.initialValue = initialValue
+    }
+
+    static func capture() -> FocusedTextChangeObserver? {
+        guard AXIsProcessTrusted(),
+              let application = NSWorkspace.shared.frontmostApplication else {
+            return nil
+        }
+        guard let value = focusedTextValue(applicationPID: application.processIdentifier) else {
+            return nil
+        }
+        return FocusedTextChangeObserver(
+            applicationPID: application.processIdentifier,
+            initialValue: value
+        )
+    }
+
+    func waitForChange(timeout: TimeInterval) async -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            if let currentValue = Self.focusedTextValue(applicationPID: applicationPID),
+               currentValue != initialValue {
+                log("text field content changed after insertion")
+                return true
+            }
+            do {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            } catch {
+                break
+            }
+        }
+        log("text field content did not change after insertion")
+        return false
+    }
+
+    private static func focusedTextValue(applicationPID: pid_t) -> String? {
+        let appElement = AXUIElementCreateApplication(applicationPID)
+        AXUIElementSetMessagingTimeout(appElement, messagingTimeout)
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            appElement,
+            kAXFocusedUIElementAttribute as CFString,
+            &raw
+        ) == .success,
+        let raw,
+        CFGetTypeID(raw) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        let focused = unsafeDowncast(raw, to: AXUIElement.self)
+        AXUIElementSetMessagingTimeout(focused, messagingTimeout)
+        var valueRaw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            focused,
+            kAXValueAttribute as CFString,
+            &valueRaw
+        ) == .success else {
+            return nil
+        }
+        return valueRaw as? String
+    }
+}
+
+@MainActor
 private enum ClipboardPasteInserter {
     private static let virtualKeyCommand: CGKeyCode = 0x37  // left Command
     private static let virtualKeyV: CGKeyCode = 0x09  // ANSI 'v'
-    private static let restoreDelayAfterRead: TimeInterval = 0.12
+    private static let restoreDelayAfterRead: TimeInterval = 2
     private static let restoreTimeout: TimeInterval = 10
     private static let targetRequestTimeout: TimeInterval = 2
     private static var pendingTransaction: ClipboardPasteTransaction?
@@ -12765,6 +12835,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             return
                         }
 
+                        let insertionObserver = shouldPressEnterAfterInsertion
+                            ? FocusedTextChangeObserver.capture()
+                            : nil
                         let insertionStartedAt = ProcessInfo.processInfo.systemUptime
                         let inserted = TextInserter.insert(
                             pastedText(from: finalText, suffix: settings.pasteSuffix)
@@ -12774,17 +12847,20 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         if inserted {
                             if shouldPressEnterAfterInsertion {
                                 let enterDelayStartedAt = ProcessInfo.processInfo.systemUptime
-                                let targetRequestedText = await ClipboardPasteInserter.waitForPendingTargetRequest()
-                                if targetRequestedText == false {
-                                    log("return skipped: paste target did not request dictation text")
+                                let fieldChanged = await insertionObserver?.waitForChange(timeout: 2)
+                                if fieldChanged == false {
+                                    log("return skipped: target field content did not change")
                                     dictationFailed = true
                                 } else {
-                                    let enterDelayNanoseconds = UInt64(settings.enterDelayMilliseconds) * 1_000_000
+                                    let delayMilliseconds = insertionObserver == nil
+                                        ? max(settings.enterDelayMilliseconds, 300)
+                                        : settings.enterDelayMilliseconds
+                                    let enterDelayNanoseconds = UInt64(delayMilliseconds) * 1_000_000
                                     if enterDelayNanoseconds > 0 {
                                         try? await Task.sleep(nanoseconds: enterDelayNanoseconds)
                                     }
                                     if KeyboardShortcutPoster.postReturn() {
-                                        log("return posted after paste target accepted dictation text")
+                                        log("return posted after target field changed")
                                     } else {
                                         log("return event creation failed")
                                     }
@@ -18546,8 +18622,8 @@ private enum ParakeySelfTest {
         )
         try expect(
             TextInserter.defaultStrategy,
-            equals: .clipboardPaste,
-            "clipboard paste should remain the default insertion strategy"
+            equals: .directUnicode,
+            "direct Unicode should be the default insertion strategy"
         )
         try expect(
             textInsertionStrategyChain(primary: .clipboardPaste),
@@ -18561,7 +18637,7 @@ private enum ParakeySelfTest {
         )
         try expect(
             TextInserter.defaultStrategyDescription,
-            equals: "Clipboard paste with Direct Unicode typing fallback",
+            equals: "Direct Unicode typing",
             "diagnostics should describe the insertion fallback chain"
         )
         let unicodeChunks = unicodeInsertionChunks(for: "ab👩‍💻cd", maxUTF16UnitsPerEvent: 4)
