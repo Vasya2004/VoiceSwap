@@ -66,14 +66,14 @@ let UPDATE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 let HOMEBREW_CASK_TAP = "shlgd/superdictate"
 let HOMEBREW_CASK_TOKEN = "shlgd/superdictate/superdictate"
 let HOMEBREW_CASK_INSTALLED_TOKEN = "parakey"
-let INSTALLED_APP_BUNDLE_PATH = "/Applications/SuperDictate.app"
+let INSTALLED_APP_BUNDLE_PATH = "/Applications/VoiceSwap.app"
 let AGENT_ARGUMENT = "--agent"
-let AGENT_LABEL = "com.local.superdictate.agent"
-let APP_SUPPORT_DIR_NAME = "SuperDictate"
+let AGENT_LABEL = "com.vasya2004.voiceswap.agent"
+let APP_SUPPORT_DIR_NAME = "VoiceSwap"
 let AGENT_STATUS_FILE_NAME = "AgentStatus.json"
 let CONTROL_PANEL_PID_FILE_NAME = "ControlPanel.pid"
 let UPDATE_HELPER_LOG_PATH = (NSHomeDirectory() as NSString)
-    .appendingPathComponent("Library/Logs/SuperDictate-update.log")
+    .appendingPathComponent("Library/Logs/VoiceSwap-update.log")
 let UPDATE_PROGRESS_ARGUMENT = "--update-progress"
 let UPDATE_PROGRESS_APP_PREFIX = "SuperDictate-update-progress-"
 let MAX_SKIPPED_UPDATE_VERSIONS = 20
@@ -107,9 +107,9 @@ let AUDIO_IDLE_STOP_DELAY_SECONDS: TimeInterval = 5
 let AUDIO_CONFIGURATION_CHANGE_SUPPRESSION_SECONDS: TimeInterval = 1
 let MODEL_DOWNLOAD_HEADROOM_BYTES: Int64 = 500 * 1024 * 1024
 
-let SETTINGS_SUITE = "com.local.superdictate"
-let CORRECTIONS_FILE_UTI = "com.local.superdictate.corrections"
-let CORRECTIONS_FILE_EXTENSION = "superdictate-corrections"
+let SETTINGS_SUITE = "com.vasya2004.voiceswap"
+let CORRECTIONS_FILE_UTI = "com.vasya2004.voiceswap.corrections"
+let CORRECTIONS_FILE_EXTENSION = "voiceswap-corrections"
 let CORRECTIONS_FILE_NAME = "VoiceSwap Corrections.\(CORRECTIONS_FILE_EXTENSION)"
 let MAX_TRANSCRIPT_CORRECTIONS = 512
 let MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES = 512
@@ -8406,18 +8406,18 @@ enum UpdateCheckFailure: Error, Equatable, Sendable {
 func manualUpdateCheckFailureText(_ failure: UpdateCheckFailure) -> String {
     switch failure {
     case .network:
-        return "SuperDictate couldn't reach GitHub. Check your internet connection and try again."
+        return "VoiceSwap couldn't reach GitHub. Check your internet connection and try again."
     case .httpStatus(403):
         return "GitHub declined the update check (HTTP 403). This is usually temporary rate limiting — try again in a few minutes."
     case .httpStatus(let code):
         return "GitHub returned an error (HTTP \(code)). Try again later."
     case .unexpectedResponse:
-        return "GitHub returned a response SuperDictate couldn't read. Try again later, or check the releases page on GitHub directly."
+        return "GitHub returned a response VoiceSwap couldn't read. Try again later, or check the releases page on GitHub directly."
     }
 }
 
 enum UpdateCheck {
-    private static let githubReleaseURLPathPrefix = "/shlgd/SuperDictate/releases/tag/"
+    private static let githubReleaseURLPathPrefix = "/Vasya2004/VoiceSwap/releases/tag/"
     static let maxReleaseResponseBytes = 512 * 1024
 
     static func fetchLatest() async -> Result<GitHubRelease, UpdateCheckFailure> {
@@ -8549,7 +8549,7 @@ enum SuperDictateUpdateInstallerError: LocalizedError, Equatable, Sendable {
             case .invalidBundle(let detail):
                 return "The new application failed verification: \(detail)"
             case .appNotWritable:
-                return "SuperDictate cannot replace the application in Applications. Run the regular installer once."
+                return "VoiceSwap cannot replace the application in Applications. Run the regular installer once."
             }
         }
         switch self {
@@ -8570,7 +8570,7 @@ enum SuperDictateUpdateInstallerError: LocalizedError, Equatable, Sendable {
         case .invalidBundle(let detail):
             return "Проверка нового приложения не пройдена: \(detail)"
         case .appNotWritable:
-            return "SuperDictate не может заменить приложение в папке Applications. Запустите обычный установщик один раз."
+            return "VoiceSwap не может заменить приложение в папке Applications. Запустите обычный установщик один раз."
         }
     }
 }
@@ -8580,7 +8580,7 @@ enum SuperDictateUpdateInstaller {
 
     static func fetchManifest(expectedVersion: String) async throws -> SuperDictateUpdateManifest {
         var request = URLRequest(url: GITHUB_UPDATE_MANIFEST_URL)
-        request.setValue("superdictate-in-app-update", forHTTPHeaderField: "User-Agent")
+        request.setValue("voiceswap-in-app-update", forHTTPHeaderField: "User-Agent")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.timeoutInterval = 15
         let (data, response) = try await fetch(request: request, maxBytes: manifestMaxBytes)
@@ -8612,9 +8612,9 @@ enum SuperDictateUpdateInstaller {
             throw SuperDictateUpdateInstallerError.appNotWritable
         }
 
-        let archiveURL = URL(string: "https://github.com/shlgd/SuperDictate/releases/download/v\(manifest.version)/SuperDictate.zip")!
+        let archiveURL = URL(string: "https://github.com/Vasya2004/VoiceSwap/releases/download/v\(manifest.version)/VoiceSwap.zip")!
         var request = URLRequest(url: archiveURL)
-        request.setValue("superdictate-in-app-update", forHTTPHeaderField: "User-Agent")
+        request.setValue("voiceswap-in-app-update", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 60
         let (archiveData, response) = try await fetch(request: request,
                                                       maxBytes: UPDATE_ARCHIVE_MAX_BYTES)
@@ -8630,8 +8630,8 @@ enum SuperDictateUpdateInstaller {
         }
 
         let workDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("SuperDictate-update-\(UUID().uuidString)", isDirectory: true)
-        let archiveFile = workDirectory.appendingPathComponent("SuperDictate.zip")
+            .appendingPathComponent("VoiceSwap-update-\(UUID().uuidString)", isDirectory: true)
+        let archiveFile = workDirectory.appendingPathComponent("VoiceSwap.zip")
         let extractedDirectory = workDirectory.appendingPathComponent("release", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: extractedDirectory,
@@ -8652,7 +8652,7 @@ enum SuperDictateUpdateInstaller {
             throw SuperDictateUpdateInstallerError.extractionFailed(extraction.output)
         }
 
-        let stagedAppURL = extractedDirectory.appendingPathComponent("SuperDictate.app",
+        let stagedAppURL = extractedDirectory.appendingPathComponent("VoiceSwap.app",
                                                                       isDirectory: true)
         do {
             try validateApp(at: stagedAppURL, expectedVersion: manifest.version)
@@ -8680,13 +8680,13 @@ enum SuperDictateUpdateInstaller {
         let fileManager = FileManager.default
         let infoURL = appURL.appendingPathComponent("Contents/Info.plist")
         let executableURL = appURL.appendingPathComponent("Contents/MacOS/SuperDictate")
-        guard appURL.lastPathComponent == "SuperDictate.app",
+        guard appURL.lastPathComponent == "VoiceSwap.app",
               fileManager.fileExists(atPath: infoURL.path),
               fileManager.isExecutableFile(atPath: executableURL.path),
               let infoData = try? Data(contentsOf: infoURL),
               let info = try? PropertyListSerialization.propertyList(from: infoData,
                                                                      format: nil) as? [String: Any],
-              info["CFBundleIdentifier"] as? String == "com.local.superdictate",
+              info["CFBundleIdentifier"] as? String == "com.vasya2004.voiceswap",
               info["CFBundleShortVersionString"] as? String == expectedVersion else {
             throw SuperDictateUpdateInstallerError.invalidBundle("неверный идентификатор или версия")
         }
@@ -8965,17 +8965,17 @@ func superDictateDirectUpdateHelperScript(pid: pid_t,
     let preparing = localizedText("Подготавливаю замену приложения…",
                                   "Preparing to replace the application…",
                                   language: language)
-    let installing = localizedText("Устанавливаю SuperDictate v\(targetVersion)…",
-                                    "Installing SuperDictate v\(targetVersion)…",
+    let installing = localizedText("Устанавливаю VoiceSwap v\(targetVersion)…",
+                                    "Installing VoiceSwap v\(targetVersion)…",
                                     language: language)
     let verifying = localizedText("Проверяю установленную версию…",
                                    "Verifying the installed version…",
                                    language: language)
-    let relaunching = localizedText("Обновление готово. Запускаю SuperDictate…",
-                                    "Update complete. Reopening SuperDictate…",
+    let relaunching = localizedText("Обновление готово. Запускаю VoiceSwap…",
+                                    "Update complete. Reopening VoiceSwap…",
                                     language: language)
-    let complete = localizedText("SuperDictate v\(targetVersion) установлена.",
-                                  "SuperDictate v\(targetVersion) is installed.",
+    let complete = localizedText("VoiceSwap v\(targetVersion) установлена.",
+                                  "VoiceSwap v\(targetVersion) is installed.",
                                   language: language)
     let failed = localizedText("Обновление не установлено. Предыдущая версия восстановлена.",
                                 "The update was not installed. The previous version was restored.",
@@ -9041,7 +9041,7 @@ func superDictateDirectUpdateHelperScript(pid: pid_t,
 
     verify_app() {
         [ -x "$APP_PATH/Contents/MacOS/SuperDictate" ] || return 1
-        [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null)" = "com.local.superdictate" ] || return 1
+        [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null)" = "com.vasya2004.voiceswap" ] || return 1
         [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST" 2>/dev/null)" = "$TARGET_VERSION" ] || return 1
         /usr/bin/codesign --verify --deep --strict "$APP_PATH"
     }
@@ -20555,7 +20555,7 @@ private enum ParakeySelfTest {
                                        httpVersion: nil,
                                        headerFields: nil)!
         let releaseData = Data(
-            #"{"tag_name":"v9.8.7","body":"Notes","html_url":"https://github.com/shlgd/SuperDictate/releases/tag/v9.8.7"}"#.utf8
+            #"{"tag_name":"v9.8.7","body":"Notes","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7"}"#.utf8
         )
 
         try expect(
@@ -20563,7 +20563,7 @@ private enum ParakeySelfTest {
             equals: .success(GitHubRelease(tagName: "v9.8.7",
                                            version: "9.8.7",
                                            body: "Notes",
-                                           htmlURL: "https://github.com/shlgd/SuperDictate/releases/tag/v9.8.7")),
+                                           htmlURL: "https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7")),
             "update parsing should decode typed GitHub release payloads"
         )
         try expect(
@@ -20582,7 +20582,7 @@ private enum ParakeySelfTest {
         )
         let oversizedReleaseData = Data(
             """
-            {"tag_name":"v9.8.7","body":"\(String(repeating: "x", count: UpdateCheck.maxReleaseResponseBytes))","html_url":"https://github.com/shlgd/SuperDictate/releases/tag/v9.8.7"}
+            {"tag_name":"v9.8.7","body":"\(String(repeating: "x", count: UpdateCheck.maxReleaseResponseBytes))","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7"}
             """.utf8
         )
         try expect(
@@ -20653,7 +20653,7 @@ private enum ParakeySelfTest {
         )
         try expect(
             UpdateCheck.parseLatest(
-                data: Data(#"{"tag_name":"v9.8.7","html_url":"https://github.com/shlgd/SuperDictate/releases/tag/v9.8.8"}"#.utf8),
+                data: Data(#"{"tag_name":"v9.8.7","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.8"}"#.utf8),
                 response: ok
             ),
             equals: .success(GitHubRelease(tagName: "v9.8.7",
@@ -20705,19 +20705,19 @@ private enum ParakeySelfTest {
             "stored app version normalization should reject oversized numeric components"
         )
         try expect(
-            UpdateCheck.sanitizedReleaseURL("http://github.com/shlgd/SuperDictate/releases/tag/v9.8.7",
+            UpdateCheck.sanitizedReleaseURL("http://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7",
                                             expectedTag: "v9.8.7"),
             equals: GITHUB_RELEASES_PAGE.absoluteString,
             "release URL sanitizing should require HTTPS"
         )
         try expect(
-            UpdateCheck.sanitizedReleaseURL("https://user@github.com/shlgd/SuperDictate/releases/tag/v9.8.7",
+            UpdateCheck.sanitizedReleaseURL("https://user@github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7",
                                             expectedTag: "v9.8.7"),
             equals: GITHUB_RELEASES_PAGE.absoluteString,
             "release URL sanitizing should reject userinfo"
         )
         try expect(
-            UpdateCheck.sanitizedReleaseURL("https://github.com/shlgd/SuperDictate/releases/tag/v9.8.7?download=1",
+            UpdateCheck.sanitizedReleaseURL("https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7?download=1",
                                             expectedTag: "v9.8.7"),
             equals: GITHUB_RELEASES_PAGE.absoluteString,
             "release URL sanitizing should reject query strings"
@@ -20960,24 +20960,24 @@ private enum ParakeySelfTest {
             pid: 123,
             targetVersion: "9.8.7",
             statePath: "/tmp/superdictate-update.state",
-            stagedAppPath: "/tmp/work/release/SuperDictate.app",
+            stagedAppPath: "/tmp/work/release/VoiceSwap.app",
             workDirectory: "/tmp/work",
-            backupAppPath: "/Applications/.SuperDictate-update-backup-test.app",
-            appPath: "/Applications/SuperDictate.app",
+            backupAppPath: "/Applications/.VoiceSwap-update-backup-test.app",
+            appPath: "/Applications/VoiceSwap.app",
             language: .english
         )
         for fragment in [
             "PANEL_PID=123",
             "TARGET_VERSION='9.8.7'",
-            "STAGED_APP='/tmp/work/release/SuperDictate.app'",
-            "BACKUP_APP='/Applications/.SuperDictate-update-backup-test.app'",
+            "STAGED_APP='/tmp/work/release/VoiceSwap.app'",
+            "BACKUP_APP='/Applications/.VoiceSwap-update-backup-test.app'",
             "wait_for_panel_exit || rollback",
             "launchctl bootout \"$SERVICE\"",
             "/bin/mv \"$APP_PATH\" \"$BACKUP_APP\" || rollback",
             "/usr/bin/ditto \"$STAGED_APP\" \"$APP_PATH\" || rollback",
             "/usr/bin/codesign --verify --deep --strict \"$APP_PATH\"",
             "if [ -d \"$BACKUP_APP\" ]; then",
-            "state \"complete\" 'SuperDictate v9.8.7 is installed.'",
+            "state \"complete\" 'VoiceSwap v9.8.7 is installed.'",
         ] {
             guard directScript.contains(fragment) else {
                 throw SelfTestFailure.failed("direct update helper missing fragment: \(fragment)")
@@ -21147,12 +21147,12 @@ private enum ParakeySelfTest {
             .appendingPathComponent("superdictate-update-replacement-test-\(UUID().uuidString)",
                                     isDirectory: true)
         let applications = root.appendingPathComponent("Applications", isDirectory: true)
-        let currentApp = applications.appendingPathComponent("SuperDictate.app", isDirectory: true)
+        let currentApp = applications.appendingPathComponent("VoiceSwap.app", isDirectory: true)
         let workDirectory = root.appendingPathComponent("work", isDirectory: true)
         let stagedApp = workDirectory
             .appendingPathComponent("release", isDirectory: true)
-            .appendingPathComponent("SuperDictate.app", isDirectory: true)
-        let backupApp = applications.appendingPathComponent(".SuperDictate-update-backup.app",
+            .appendingPathComponent("VoiceSwap.app", isDirectory: true)
+        let backupApp = applications.appendingPathComponent(".VoiceSwap-update-backup.app",
                                                              isDirectory: true)
         let statePath = root.appendingPathComponent("state.txt")
         let helperPath = root.appendingPathComponent("helper.sh")
@@ -21214,8 +21214,8 @@ private enum ParakeySelfTest {
                                       ofItemAtPath: executableURL.path)
         let info: [String: Any] = [
             "CFBundleExecutable": "SuperDictate",
-            "CFBundleIdentifier": "com.local.superdictate",
-            "CFBundleName": "SuperDictate",
+            "CFBundleIdentifier": "com.vasya2004.voiceswap",
+            "CFBundleName": "VoiceSwap",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": version,
             "CFBundleVersion": "1",
@@ -23530,7 +23530,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         let helperLog = try openPrivateUpdateHelperLog()
         let appURL = Bundle.main.bundleURL
         let backupURL = appURL.deletingLastPathComponent()
-            .appendingPathComponent(".SuperDictate-update-backup-\(UUID().uuidString).app",
+            .appendingPathComponent(".VoiceSwap-update-backup-\(UUID().uuidString).app",
                                     isDirectory: true)
         let script = superDictateDirectUpdateHelperScript(
             pid: getpid(),

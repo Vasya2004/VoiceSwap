@@ -1,0 +1,30 @@
+name: publish VoiceSwap release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Build the application
+        run: SIGN_IDENTITY=- ./scripts/build-app.sh "$RUNNER_TEMP/VoiceSwap.app"
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$RUNNER_TEMP/VoiceSwap.app" "$RUNNER_TEMP/VoiceSwap.zip"
+          shasum -a 256 "$RUNNER_TEMP/VoiceSwap.zip" > "$RUNNER_TEMP/VoiceSwap.zip.sha256"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "VoiceSwap $GITHUB_REF_NAME" \
+              --notes "Apple Silicon · macOS 14+. Install with the command in the README."
+          fi
+          gh release upload "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/VoiceSwap.zip" \
+            "$RUNNER_TEMP/VoiceSwap.zip.sha256" --clobber

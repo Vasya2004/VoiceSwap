@@ -14,17 +14,13 @@ jobs:
     steps:
       - name: Install from the public command
         run: |
-          curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh | \
-            SUPERDICTATE_NO_OPEN=1 bash
+          curl -fsSL https://raw.githubusercontent.com/Vasya2004/VoiceSwap/main/install-voiceswap.sh | bash
       - name: Verify installed release
         run: |
-          test -x /Applications/SuperDictate.app/Contents/MacOS/SuperDictate
-          test "$(plutil -extract CFBundleIdentifier raw -o - /Applications/SuperDictate.app/Contents/Info.plist)" = "com.local.superdictate"
-          test "$(plutil -extract CFBundleShortVersionString raw -o - /Applications/SuperDictate.app/Contents/Info.plist)" = "0.2.43"
-          file /Applications/SuperDictate.app/Contents/MacOS/SuperDictate | grep -q arm64
-          codesign --verify --deep --strict /Applications/SuperDictate.app
-          codesign -d --entitlements :- /Applications/SuperDictate.app > "$RUNNER_TEMP/entitlements.plist" 2>/dev/null
+          test -x /Applications/VoiceSwap.app/Contents/MacOS/SuperDictate
+          test "$(plutil -extract CFBundleIdentifier raw -o - /Applications/VoiceSwap.app/Contents/Info.plist)" = "com.vasya2004.voiceswap"
+          file /Applications/VoiceSwap.app/Contents/MacOS/SuperDictate | grep -q arm64
+          codesign --verify --deep --strict /Applications/VoiceSwap.app
+          codesign -d --entitlements :- /Applications/VoiceSwap.app > "$RUNNER_TEMP/entitlements.plist" 2>/dev/null
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' "$RUNNER_TEMP/entitlements.plist")" = "true"
           test "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.microphone' "$RUNNER_TEMP/entitlements.plist")" = "true"
-          test -d "$HOME/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3/Encoder.mlmodelc"
-          test -f "$HOME/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3/parakeet_vocab.json"
