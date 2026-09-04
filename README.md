@@ -1,4 +1,12 @@
-# SuperDictate
+# VoiceSwap
+
+VoiceSwap is a personal, local-first macOS dictation utility based on
+[SuperDictate](https://github.com/shlgd/SuperDictate). It turns speech into text
+at the cursor and supports a fast finish-and-send gesture: press **Right Command**
+to start, then press **Right Option** to transcribe and press Return automatically.
+
+This repository contains a custom build. The upstream installation and update
+commands below are retained as technical reference, not as the VoiceSwap installer.
 
 ## Установить за минуту
 
@@ -52,9 +60,8 @@ curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh 
 - **Правый Command** — начать диктовку; повторное нажатие завершает запись.
 - В настройках можно выбрать, что делает повторное нажатие: просто вставляет
   текст или вставляет текст и затем нажимает Enter.
-- **Правый Option + правый Command** — альтернативно завершить активную запись.
-  Он выполняет противоположное действие: если основной хоткей нажимает Enter,
-  этот завершит без Enter, и наоборот. Альтернативный хоткей можно выключить.
+- **Правый Option** после запуска записи правым Command — завершить активную
+  запись, вставить транскрипцию и автоматически нажать Enter.
 - **Правый Shift + правый Command** — открыть или закрыть быструю историю.
 - История показывает по 5 записей; стрелки листают до 100 последних
   транскрипций. Нажатие на запись копирует её и закрывает панель.

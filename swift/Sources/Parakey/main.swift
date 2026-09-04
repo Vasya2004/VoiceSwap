@@ -58,10 +58,10 @@ let MIN_CLIP_SECONDS: Double = 0.25
 let UPDATE_CHECK_FIRST_DELAY_SECONDS: TimeInterval = 30
 let UPDATE_CHECK_INTERVAL_SECONDS: TimeInterval = 6 * 3600  // 6h
 let UPDATE_REMIND_LATER_SECONDS: TimeInterval = 24 * 3600  // 24h
-let GITHUB_LATEST_RELEASE_URL = URL(string: "https://api.github.com/repos/shlgd/SuperDictate/releases/latest")!
-let GITHUB_REPOSITORY_PAGE = URL(string: "https://github.com/shlgd/SuperDictate")!
-let GITHUB_RELEASES_PAGE = URL(string: "https://github.com/shlgd/SuperDictate/releases/latest")!
-let GITHUB_UPDATE_MANIFEST_URL = URL(string: "https://raw.githubusercontent.com/shlgd/SuperDictate/main/update.json")!
+let GITHUB_LATEST_RELEASE_URL = URL(string: "https://api.github.com/repos/Vasya2004/VoiceSwap/releases/latest")!
+let GITHUB_REPOSITORY_PAGE = URL(string: "https://github.com/Vasya2004/VoiceSwap")!
+let GITHUB_RELEASES_PAGE = URL(string: "https://github.com/Vasya2004/VoiceSwap/releases/latest")!
+let GITHUB_UPDATE_MANIFEST_URL = URL(string: "https://raw.githubusercontent.com/Vasya2004/VoiceSwap/main/update.json")!
 let UPDATE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 let HOMEBREW_CASK_TAP = "shlgd/superdictate"
 let HOMEBREW_CASK_TOKEN = "shlgd/superdictate/superdictate"
@@ -110,7 +110,7 @@ let MODEL_DOWNLOAD_HEADROOM_BYTES: Int64 = 500 * 1024 * 1024
 let SETTINGS_SUITE = "com.local.superdictate"
 let CORRECTIONS_FILE_UTI = "com.local.superdictate.corrections"
 let CORRECTIONS_FILE_EXTENSION = "superdictate-corrections"
-let CORRECTIONS_FILE_NAME = "SuperDictate Corrections.\(CORRECTIONS_FILE_EXTENSION)"
+let CORRECTIONS_FILE_NAME = "VoiceSwap Corrections.\(CORRECTIONS_FILE_EXTENSION)"
 let MAX_TRANSCRIPT_CORRECTIONS = 512
 let MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES = 512
 let MAX_TRANSCRIPT_CORRECTION_REPLACEMENT_BYTES = 4096
@@ -4012,7 +4012,7 @@ private final class HotkeyRecorderController: NSObject, NSWindowDelegate {
                               action: nil)
         super.init()
 
-        panel.title = "SuperDictate"
+        panel.title = "VoiceSwap"
         panel.isReleasedWhenClosed = false
         panel.level = .floating
         panel.delegate = self
@@ -4397,6 +4397,10 @@ private struct HotkeyTransitionState {
     private var standardShortcutState = HotkeyShortcutState()
     private var enterShortcutState = HotkeyShortcutState()
     private var historyShortcutState = HotkeyShortcutState()
+    // In toggle mode, Right Command begins a dictation.  A subsequent
+    // Right Option press is the explicit "finish and send" gesture.
+    // Keep its own state so the paired modifier release is swallowed too.
+    private var rightOptionCompletionState = HotkeyShortcutState()
     private var toggleActive = false
     private var suppressEscapeKeyUp = false
 
@@ -4404,6 +4408,7 @@ private struct HotkeyTransitionState {
         standardShortcutState.reset()
         enterShortcutState.reset()
         historyShortcutState.reset()
+        rightOptionCompletionState.reset()
         toggleActive = false
         suppressEscapeKeyUp = false
     }
@@ -4437,6 +4442,14 @@ private struct HotkeyTransitionState {
                                                     isRecording: isRecording,
                                                     historyHotkey: historyHotkey) {
             return history
+        }
+
+        if let completion = transitionRightOptionCompletion(for: event,
+                                                              hotkey: hotkey,
+                                                              alternateCompletionEnabled: alternateCompletionEnabled,
+                                                              triggerMode: triggerMode,
+                                                              isRecording: isRecording) {
+            return completion
         }
 
         if alternateCompletionEnabled,
@@ -4524,6 +4537,43 @@ private struct HotkeyTransitionState {
             toggleActive = false
             return HotkeyTransitionResult(suppress: shortcutResult.suppress,
                                           actions: [.releaseAlternate])
+        case .press, .release, .suppress:
+            return shortcutResult.suppress ? .suppressOnly : nil
+        case .pass:
+            return nil
+        }
+    }
+
+    /// Toggle dictation normally starts with a single Right Command press and
+    /// ends with the next Right Command press.  While it is recording, Right
+    /// Option is a faster alternate finish gesture: it inserts the transcript
+    /// and presses Return after transcription.  It deliberately applies only
+    /// to the default unmodified Right Command hotkey, so custom hotkeys keep
+    /// their configured shortcuts unchanged.
+    private mutating func transitionRightOptionCompletion(
+        for event: HotkeyEventSnapshot,
+        hotkey: HotkeyChoice,
+        alternateCompletionEnabled: Bool,
+        triggerMode: TriggerMode,
+        isRecording: Bool
+    ) -> HotkeyTransitionResult? {
+        let rightOption = hotkeyChoice(forKeycode: RIGHT_OPTION_KEYCODE)
+        guard alternateCompletionEnabled,
+              triggerMode == .toggle,
+              hotkey.keycode == RIGHT_COMMAND_KEYCODE,
+              hotkey.requiredModifiers.isEmpty,
+              hotkey.isModifier,
+              (isRecording || rightOptionCompletionState.isEngaged) else {
+            return nil
+        }
+
+        let shortcutResult = rightOptionCompletionState.consume(event, shortcut: rightOption)
+        switch shortcutResult.edge {
+        case .press where isRecording:
+            standardShortcutState.reset()
+            enterShortcutState.reset()
+            toggleActive = false
+            return HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate])
         case .press, .release, .suppress:
             return shortcutResult.suppress ? .suppressOnly : nil
         case .pass:
@@ -14297,7 +14347,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func confirmStopDictation() -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Stop SuperDictate?"
+        alert.messageText = "Stop VoiceSwap?"
         alert.informativeText = "The \(hotkey.hotkey.name) dictation shortcut will stop until you open SuperDictate again. Use Close to hide windows while keeping dictation running."
         alert.addButton(withTitle: "Keep Running")
         alert.addButton(withTitle: "Stop Dictation")
@@ -14330,7 +14380,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showAppForModal()
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "SuperDictate Reopened After an Unexpected Exit"
+        alert.messageText = "VoiceSwap Reopened After an Unexpected Exit"
         alert.informativeText = """
             Parakey appears to have exited last time without a normal shutdown. Nothing was sent anywhere.
 
@@ -14519,7 +14569,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // in the menu that gets such an indicator — every other row
         // sits flush against the left edge. The wrapper produces the
         // identical behaviour with no auto-glyph.
-        let quit = NSMenuItem(title: "Quit SuperDictate",
+        let quit = NSMenuItem(title: "Quit VoiceSwap",
                               action: #selector(quitClicked(_:)),
                               keyEquivalent: "q")
         quit.target = self
@@ -14576,7 +14626,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         sub.addItem(.separator())
 
-        let about = NSMenuItem(title: "About SuperDictate",
+        let about = NSMenuItem(title: "About VoiceSwap",
                                action: #selector(showAboutClicked(_:)),
                                keyEquivalent: "")
         about.target = self
@@ -14668,7 +14718,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if isCoreRuntimeReady {
             return "Starting hotkey listener…"
         }
-        return "SuperDictate is not ready"
+        return "VoiceSwap is not ready"
     }
 
     private func diagnosticsText() -> String {
@@ -14841,7 +14891,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                               styleMask: [.titled, .closable],
                               backing: .buffered,
                               defer: false)
-        window.title = "Set Up SuperDictate"
+        window.title = "Set Up VoiceSwap"
         window.isReleasedWhenClosed = false
         window.delegate = self
         setupChecklistWindow = window
@@ -14904,8 +14954,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         root.edgeInsets = NSEdgeInsets(top: 20, left: 22, bottom: 18, right: 22)
         root.translatesAutoresizingMaskIntoConstraints = false
 
-        let title = setupLabel("Set Up SuperDictate", font: .systemFont(ofSize: 22, weight: .semibold))
-        let subtitle = setupLabel("Finish these checks before dictating. SuperDictate keeps this setup local to your Mac.",
+        let title = setupLabel("Set Up VoiceSwap", font: .systemFont(ofSize: 22, weight: .semibold))
+        let subtitle = setupLabel("Finish these checks before dictating. VoiceSwap keeps this setup local to your Mac.",
                                   font: .systemFont(ofSize: 13),
                                   color: .secondaryLabelColor)
         subtitle.preferredMaxLayoutWidth = 476
@@ -14923,7 +14973,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         root.addArrangedSubview(makeHotkeySetupRow())
 
         if !setupChecklistIsComplete {
-            let tip = setupLabel("Tip: If macOS does not show a permission prompt, click 'Open Settings' and enable SuperDictate in the displayed privacy section.",
+            let tip = setupLabel("Tip: If macOS does not show a permission prompt, click 'Open Settings' and enable VoiceSwap in the displayed privacy section.",
                                  font: .systemFont(ofSize: 11),
                                  color: .secondaryLabelColor)
             tip.preferredMaxLayoutWidth = 476
@@ -16820,7 +16870,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func showAboutClicked(_ sender: NSMenuItem) {
         showAppForModal()
         let alert = NSAlert()
-        alert.messageText = "SuperDictate \(currentBundleVersion())"
+        alert.messageText = "VoiceSwap \(currentBundleVersion())"
         alert.informativeText = """
             Lightweight push-to-talk dictation for Apple Silicon Macs.
 
@@ -16833,13 +16883,13 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Permissions: microphone audio, paste-at-cursor, push-to-talk hotkey.
 
             Open source, based on Parakey by Richard Courtman.
-            github.com/shlgd/SuperDictate · MIT licensed
+            github.com/Vasya2004/VoiceSwap · MIT licensed
             """
         // Use our app icon instead of NSAlert's default exclamation
-        // mark. .icns lives in Contents/Resources/Parakey.icns;
+        // mark. .icns lives in Contents/Resources/VoiceSwap.icns;
         // NSImage(named:) on Bundle.main resolves it by filename
         // sans extension.
-        if let icon = NSImage(named: "Parakey") {
+        if let icon = NSImage(named: "VoiceSwap") {
             alert.icon = icon
         }
         alert.addButton(withTitle: "OK")
@@ -22264,9 +22314,28 @@ private enum ParakeySelfTest {
     private static func testOptionCommandEnterChordStopsWithEnter() throws {
         let rightCommand = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE)
         let alternate = CGEventFlags.maskAlternate.rawValue
-        let commandAlternate = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskAlternate.rawValue
 
         var state = HotkeyTransitionState()
+        try expect(
+            state.transition(for: event(.flagsChanged,
+                                        keycode: RIGHT_COMMAND_KEYCODE,
+                                        flags: CGEventFlags.maskCommand.rawValue),
+                             hotkey: rightCommand,
+                             triggerMode: .toggle,
+                             isRecording: false),
+            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
+            "a single right Command press should still start toggle dictation"
+        )
+        try expect(
+            state.transition(for: event(.flagsChanged,
+                                        keycode: RIGHT_COMMAND_KEYCODE,
+                                        flags: 0),
+                             hotkey: rightCommand,
+                             triggerMode: .toggle,
+                             isRecording: true),
+            equals: .suppressOnly,
+            "releasing the first right Command must keep toggle dictation active"
+        )
         try expect(
             state.transition(for: event(.flagsChanged,
                                         keycode: RIGHT_OPTION_KEYCODE,
@@ -22274,28 +22343,8 @@ private enum ParakeySelfTest {
                              hotkey: rightCommand,
                              triggerMode: .toggle,
                              isRecording: true),
-            equals: .pass,
-            "right Option alone must remain available while recording"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: commandAlternate),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.releaseAlternate]),
-            "right Option + right Command should stop dictation without stealing modifiers"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: alternate),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: .pass,
-            "enter chord should pass the paired right command release"
+            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
+            "right Option alone should finish and send toggle dictation"
         )
         try expect(
             state.transition(for: event(.flagsChanged,
@@ -22304,8 +22353,20 @@ private enum ParakeySelfTest {
                              hotkey: rightCommand,
                              triggerMode: .toggle,
                              isRecording: false),
+            equals: .suppressOnly,
+            "the paired right Option release should not leak to the frontmost app"
+        )
+
+        var customHotkeyState = HotkeyTransitionState()
+        try expect(
+            customHotkeyState.transition(for: event(.flagsChanged,
+                                                    keycode: RIGHT_OPTION_KEYCODE,
+                                                    flags: alternate),
+                                        hotkey: hotkeyChoice(forKeycode: 96),
+                             triggerMode: .toggle,
+                             isRecording: true),
             equals: .pass,
-            "enter chord should pass the paired right Option release"
+            "right Option completion must not override a custom dictation hotkey"
         )
 
     }
@@ -22658,7 +22719,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
                               styleMask: [.titled, .closable, .miniaturizable],
                               backing: .buffered,
                               defer: false)
-        window.title = "SuperDictate"
+        window.title = "VoiceSwap"
         window.contentMinSize = NSSize(width: 520, height: 310)
         window.contentMaxSize = NSSize(width: 520, height: 310)
         window.isReleasedWhenClosed = false
@@ -22690,10 +22751,10 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         guard force || fingerprint != lastRenderFingerprint else { return }
         lastRenderFingerprint = fingerprint
         resizeCompactPanel(window)
-        window.title = t("SuperDictate — панель управления", "SuperDictate — Control Panel")
+        window.title = t("VoiceSwap — панель управления", "VoiceSwap — Control Panel")
         window.contentView = makeContentView()
         if let settingsWindow, settingsWindow.isVisible {
-            settingsWindow.title = t("Настройки SuperDictate", "SuperDictate Settings")
+            settingsWindow.title = t("Настройки VoiceSwap", "VoiceSwap Settings")
         }
     }
 
@@ -22966,7 +23027,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
         text.orientation = .vertical
         text.alignment = .leading
         text.spacing = 1
-        text.addArrangedSubview(panelLabel("SuperDictate", size: 20, weight: .semibold))
+        text.addArrangedSubview(panelLabel("VoiceSwap", size: 20, weight: .semibold))
         text.addArrangedSubview(panelLabel(
             t("Локальная диктовка · работает в фоне", "Local dictation · runs in the background"),
             size: 11.5,
@@ -22975,7 +23036,7 @@ private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate
 
         let version = panelLabel("v\(currentBundleVersion())", size: 11, color: .tertiaryLabelColor)
         version.setContentHuggingPriority(.required, for: .horizontal)
-        version.toolTip = t("Установленная версия SuperDictate", "Installed SuperDictate version")
+        version.toolTip = t("Установленная версия VoiceSwap", "Installed VoiceSwap version")
 
         let languageControl = NSSegmentedControl(labels: ["RU", "EN"],
                                                  trackingMode: .selectOne,

@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>SuperDictate</string>
+	<string>VoiceSwap</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>SuperDictate Corrections</string>
+			<string>VoiceSwap Corrections</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -22,13 +22,13 @@
 	<key>CFBundleExecutable</key>
 	<string>SuperDictate</string>
 	<key>CFBundleIconFile</key>
-	<string>Parakey</string>
+	<string>VoiceSwap</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.local.superdictate</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>SuperDictate</string>
+	<string>VoiceSwap</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -40,13 +40,13 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>SuperDictate uses System Events to paste transcribed text at your cursor and to mute the system audio output during recording.</string>
+	<string>VoiceSwap uses System Events to paste transcribed text at your cursor and to mute the system audio output during recording.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>SuperDictate, based on Parakey. MIT licensed.</string>
+	<string>VoiceSwap, based on SuperDictate and Parakey. MIT licensed.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>SuperDictate records audio while dictation is active, then transcribes it locally on your Mac.</string>
+	<string>VoiceSwap records audio while dictation is active, then transcribes it locally on your Mac.</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -55,7 +55,7 @@
 				<string>public.json</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>SuperDictate Corrections</string>
+			<string>VoiceSwap Corrections</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.local.superdictate.corrections</string>
 			<key>UTTypeTagSpecification</key>

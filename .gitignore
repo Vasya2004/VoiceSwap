@@ -2,5 +2,6 @@
 .build/
 swift/.build/
 dist/
+.lazyweb/
+icon/*.iconset/
 *.xcuserstate
-

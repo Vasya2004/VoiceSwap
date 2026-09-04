@@ -62,7 +62,7 @@ cp "$BIN" "$STAGE_APP/Contents/MacOS/SuperDictate"
 cp "$ROOT_DIR/swift/Info.plist" "$STAGE_APP/Contents/Info.plist"
 cp "$ROOT_DIR/swift/Resources/parakey-menubar.png" "$STAGE_APP/Contents/Resources/"
 cp "$ROOT_DIR/swift/Resources/parakey-menubar@2x.png" "$STAGE_APP/Contents/Resources/"
-cp "$ROOT_DIR/icon/Parakey.icns" "$STAGE_APP/Contents/Resources/Parakey.icns"
+cp "$ROOT_DIR/icon/VoiceSwap.icns" "$STAGE_APP/Contents/Resources/VoiceSwap.icns"
 chmod 755 "$STAGE_APP/Contents/MacOS/SuperDictate"
 
 SIGN_ARGS=(--force --deep --sign "$SIGN_IDENTITY" --options runtime
