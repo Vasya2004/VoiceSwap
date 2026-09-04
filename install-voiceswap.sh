@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPOSITORY="${VOICESWAP_REPOSITORY:-Vasya2004/VoiceSwap}"
-VERSION="${VOICESWAP_VERSION:-0.3.1}"
+VERSION="${VOICESWAP_VERSION:-0.3.2}"
 APP_PATH="${VOICESWAP_APP_PATH:-/Applications/VoiceSwap.app}"
 AGENT_LABEL="com.vasya2004.voiceswap.agent"
 ARCHIVE_URL="${VOICESWAP_ARCHIVE_URL:-https://github.com/$REPOSITORY/releases/download/v$VERSION/VoiceSwap.zip}"
