@@ -49,6 +49,7 @@ let DEFAULT_HOTKEY_KEYCODE: CGKeyCode = 54  // Right Command
 let RIGHT_COMMAND_KEYCODE: CGKeyCode = 54
 let LEFT_COMMAND_KEYCODE: CGKeyCode = 55
 let RIGHT_OPTION_KEYCODE: CGKeyCode = 61
+let LEFT_OPTION_KEYCODE: CGKeyCode = 58
 let RIGHT_SHIFT_KEYCODE: CGKeyCode = 60
 let FN_KEYCODE: CGKeyCode = 63
 let ESCAPE_KEYCODE: CGKeyCode = 53
@@ -4401,6 +4402,10 @@ private struct HotkeyTransitionState {
     // Right Option press is the explicit "finish and send" gesture.
     // Keep its own state so the paired modifier release is swallowed too.
     private var rightOptionCompletionState = HotkeyShortcutState()
+    // Windows-layout keyboards do not always expose their physical right Alt
+    // as macOS keycode 61.  Some controllers report it as the generic/left
+    // Option keycode 58, so track that compatible completion key separately.
+    private var compatibleOptionCompletionState = HotkeyShortcutState()
     private var toggleActive = false
     private var suppressEscapeKeyUp = false
 
@@ -4409,6 +4414,7 @@ private struct HotkeyTransitionState {
         enterShortcutState.reset()
         historyShortcutState.reset()
         rightOptionCompletionState.reset()
+        compatibleOptionCompletionState.reset()
         toggleActive = false
         suppressEscapeKeyUp = false
     }
@@ -4444,11 +4450,11 @@ private struct HotkeyTransitionState {
             return history
         }
 
-        if let completion = transitionRightOptionCompletion(for: event,
-                                                              hotkey: hotkey,
-                                                              alternateCompletionEnabled: alternateCompletionEnabled,
-                                                              triggerMode: triggerMode,
-                                                              isRecording: isRecording) {
+        if let completion = transitionOptionCompletion(for: event,
+                                                        hotkey: hotkey,
+                                                        alternateCompletionEnabled: alternateCompletionEnabled,
+                                                        triggerMode: triggerMode,
+                                                        isRecording: isRecording) {
             return completion
         }
 
@@ -4547,10 +4553,12 @@ private struct HotkeyTransitionState {
     /// Toggle dictation normally starts with a single Right Command press and
     /// ends with the next Right Command press.  While it is recording, Right
     /// Option is a faster alternate finish gesture: it inserts the transcript
-    /// and presses Return after transcription.  It deliberately applies only
-    /// to the default unmodified Right Command hotkey, so custom hotkeys keep
-    /// their configured shortcuts unchanged.
-    private mutating func transitionRightOptionCompletion(
+    /// and presses Return after transcription. Windows keyboards can surface
+    /// their physical right Alt as keycode 58, so that compatible Option code
+    /// is accepted too. It deliberately applies only to the default
+    /// unmodified Right Command hotkey, so custom hotkeys keep their configured
+    /// shortcuts unchanged.
+    private mutating func transitionOptionCompletion(
         for event: HotkeyEventSnapshot,
         hotkey: HotkeyChoice,
         alternateCompletionEnabled: Bool,
@@ -4558,16 +4566,26 @@ private struct HotkeyTransitionState {
         isRecording: Bool
     ) -> HotkeyTransitionResult? {
         let rightOption = hotkeyChoice(forKeycode: RIGHT_OPTION_KEYCODE)
+        let compatibleOption = hotkeyChoice(forKeycode: LEFT_OPTION_KEYCODE)
         guard alternateCompletionEnabled,
               triggerMode == .toggle,
               hotkey.keycode == RIGHT_COMMAND_KEYCODE,
               hotkey.requiredModifiers.isEmpty,
               hotkey.isModifier,
-              (isRecording || rightOptionCompletionState.isEngaged) else {
+              (isRecording
+               || rightOptionCompletionState.isEngaged
+               || compatibleOptionCompletionState.isEngaged) else {
             return nil
         }
 
-        let shortcutResult = rightOptionCompletionState.consume(event, shortcut: rightOption)
+        let shortcutResult: HotkeyShortcutResult
+        if event.keycode == RIGHT_OPTION_KEYCODE || rightOptionCompletionState.isEngaged {
+            shortcutResult = rightOptionCompletionState.consume(event, shortcut: rightOption)
+        } else if event.keycode == LEFT_OPTION_KEYCODE || compatibleOptionCompletionState.isEngaged {
+            shortcutResult = compatibleOptionCompletionState.consume(event, shortcut: compatibleOption)
+        } else {
+            return nil
+        }
         switch shortcutResult.edge {
         case .press where isRecording:
             standardShortcutState.reset()
@@ -22355,6 +22373,44 @@ private enum ParakeySelfTest {
                              isRecording: false),
             equals: .suppressOnly,
             "the paired right Option release should not leak to the frontmost app"
+        )
+
+        var windowsKeyboardState = HotkeyTransitionState()
+        _ = windowsKeyboardState.transition(
+            for: event(.flagsChanged,
+                       keycode: RIGHT_COMMAND_KEYCODE,
+                       flags: CGEventFlags.maskCommand.rawValue),
+            hotkey: rightCommand,
+            triggerMode: .toggle,
+            isRecording: false
+        )
+        _ = windowsKeyboardState.transition(
+            for: event(.flagsChanged, keycode: RIGHT_COMMAND_KEYCODE),
+            hotkey: rightCommand,
+            triggerMode: .toggle,
+            isRecording: true
+        )
+        try expect(
+            windowsKeyboardState.transition(
+                for: event(.flagsChanged,
+                           keycode: LEFT_OPTION_KEYCODE,
+                           flags: alternate),
+                hotkey: rightCommand,
+                triggerMode: .toggle,
+                isRecording: true
+            ),
+            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
+            "Windows-layout keyboards that report right Alt as Option keycode 58 should finish and send"
+        )
+        try expect(
+            windowsKeyboardState.transition(
+                for: event(.flagsChanged, keycode: LEFT_OPTION_KEYCODE),
+                hotkey: rightCommand,
+                triggerMode: .toggle,
+                isRecording: false
+            ),
+            equals: .suppressOnly,
+            "the compatible Option release should not leak to the frontmost app"
         )
 
         var customHotkeyState = HotkeyTransitionState()
