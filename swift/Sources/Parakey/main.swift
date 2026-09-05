@@ -4406,6 +4406,9 @@ private struct HotkeyTransitionState {
     // as macOS keycode 61.  Some controllers report it as the generic/left
     // Option keycode 58, so track that compatible completion key separately.
     private var compatibleOptionCompletionState = HotkeyShortcutState()
+    // A number of Windows keyboard controllers expose the physical key in the
+    // Right Option position as macOS Fn instead of Option.
+    private var fnCompletionState = HotkeyShortcutState()
     private var toggleActive = false
     private var suppressEscapeKeyUp = false
 
@@ -4415,6 +4418,7 @@ private struct HotkeyTransitionState {
         historyShortcutState.reset()
         rightOptionCompletionState.reset()
         compatibleOptionCompletionState.reset()
+        fnCompletionState.reset()
         toggleActive = false
         suppressEscapeKeyUp = false
     }
@@ -4554,8 +4558,8 @@ private struct HotkeyTransitionState {
     /// ends with the next Right Command press.  While it is recording, Right
     /// Option is a faster alternate finish gesture: it inserts the transcript
     /// and presses Return after transcription. Windows keyboards can surface
-    /// their physical right Alt as keycode 58, so that compatible Option code
-    /// is accepted too. It deliberately applies only to the default
+    /// their physical right-side modifier as Option keycode 58 or Fn keycode
+    /// 63, so both compatible codes are accepted too. It deliberately applies only to the default
     /// unmodified Right Command hotkey, so custom hotkeys keep their configured
     /// shortcuts unchanged.
     private mutating func transitionOptionCompletion(
@@ -4567,6 +4571,7 @@ private struct HotkeyTransitionState {
     ) -> HotkeyTransitionResult? {
         let rightOption = hotkeyChoice(forKeycode: RIGHT_OPTION_KEYCODE)
         let compatibleOption = hotkeyChoice(forKeycode: LEFT_OPTION_KEYCODE)
+        let fn = hotkeyChoice(forKeycode: FN_KEYCODE)
         guard alternateCompletionEnabled,
               triggerMode == .toggle,
               hotkey.keycode == RIGHT_COMMAND_KEYCODE,
@@ -4574,7 +4579,8 @@ private struct HotkeyTransitionState {
               hotkey.isModifier,
               (isRecording
                || rightOptionCompletionState.isEngaged
-               || compatibleOptionCompletionState.isEngaged) else {
+               || compatibleOptionCompletionState.isEngaged
+               || fnCompletionState.isEngaged) else {
             return nil
         }
 
@@ -4583,6 +4589,8 @@ private struct HotkeyTransitionState {
             shortcutResult = rightOptionCompletionState.consume(event, shortcut: rightOption)
         } else if event.keycode == LEFT_OPTION_KEYCODE || compatibleOptionCompletionState.isEngaged {
             shortcutResult = compatibleOptionCompletionState.consume(event, shortcut: compatibleOption)
+        } else if event.keycode == FN_KEYCODE || fnCompletionState.isEngaged {
+            shortcutResult = fnCompletionState.consume(event, shortcut: fn)
         } else {
             return nil
         }
@@ -22411,6 +22419,44 @@ private enum ParakeySelfTest {
             ),
             equals: .suppressOnly,
             "the compatible Option release should not leak to the frontmost app"
+        )
+
+        var fnKeyboardState = HotkeyTransitionState()
+        _ = fnKeyboardState.transition(
+            for: event(.flagsChanged,
+                       keycode: RIGHT_COMMAND_KEYCODE,
+                       flags: CGEventFlags.maskCommand.rawValue),
+            hotkey: rightCommand,
+            triggerMode: .toggle,
+            isRecording: false
+        )
+        _ = fnKeyboardState.transition(
+            for: event(.flagsChanged, keycode: RIGHT_COMMAND_KEYCODE),
+            hotkey: rightCommand,
+            triggerMode: .toggle,
+            isRecording: true
+        )
+        try expect(
+            fnKeyboardState.transition(
+                for: event(.flagsChanged,
+                           keycode: FN_KEYCODE,
+                           flags: CGEventFlags.maskSecondaryFn.rawValue),
+                hotkey: rightCommand,
+                triggerMode: .toggle,
+                isRecording: true
+            ),
+            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
+            "Windows keyboards that surface the right-side modifier as Fn should finish and send"
+        )
+        try expect(
+            fnKeyboardState.transition(
+                for: event(.flagsChanged, keycode: FN_KEYCODE),
+                hotkey: rightCommand,
+                triggerMode: .toggle,
+                isRecording: false
+            ),
+            equals: .suppressOnly,
+            "the compatible Fn release should not leak to the frontmost app"
         )
 
         var customHotkeyState = HotkeyTransitionState()
