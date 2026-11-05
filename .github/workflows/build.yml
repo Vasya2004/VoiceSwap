@@ -15,8 +15,14 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Validate scripts and plists
         run: ./scripts/check.sh
+      - name: Pure tests and installation transaction
+        run: |
+          swift test --package-path swift
+          bash scripts/test-install.sh
       - name: Swift self-tests
         run: swift run -c debug --package-path swift Parakey --self-test all
+      - name: Bounded download integration checks
+        run: python3 scripts/test-download.py
       - name: Build app bundle
         run: SIGN_IDENTITY=- ./scripts/build-app.sh "$RUNNER_TEMP/VoiceSwap.app"
       - name: Verify app bundle
@@ -30,6 +36,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent \
             "$RUNNER_TEMP/VoiceSwap.app" "$RUNNER_TEMP/release/VoiceSwap.zip"
           shasum -a 256 "$RUNNER_TEMP/release/VoiceSwap.zip" > "$RUNNER_TEMP/release/VoiceSwap.zip.sha256"
+          VOICESWAP_APP_PATH=/Applications/VoiceSwap.app \
           VOICESWAP_ARCHIVE_URL="file://$RUNNER_TEMP/release/VoiceSwap.zip" \
           VOICESWAP_CHECKSUM_URL="file://$RUNNER_TEMP/release/VoiceSwap.zip.sha256" \
             ./install-voiceswap.sh

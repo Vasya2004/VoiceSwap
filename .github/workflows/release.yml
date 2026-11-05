@@ -1,30 +1,40 @@
 name: publish VoiceSwap release
-
 on:
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   release:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Build the application
-        run: SIGN_IDENTITY=- ./scripts/build-app.sh "$RUNNER_TEMP/VoiceSwap.app"
-      - name: Package and publish
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Validate and test
+        run: |
+          bash scripts/check.sh
+          swift test --package-path swift
+          swift run -c debug --package-path swift Parakey --self-test all
+          python3 scripts/test-download.py
+          bash scripts/test-install.sh
+      - name: Build and prepare immutable release artifacts
+        run: |
+          SIGN_IDENTITY=- ./scripts/build-app.sh "$RUNNER_TEMP/VoiceSwap.app"
+          ./scripts/prepare-release.sh "$RUNNER_TEMP/VoiceSwap.app" "$RUNNER_TEMP/release"
+      - name: Publish matching tag, archive and manifest
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ditto -c -k --sequesterRsrc --keepParent \
-            "$RUNNER_TEMP/VoiceSwap.app" "$RUNNER_TEMP/VoiceSwap.zip"
-          shasum -a 256 "$RUNNER_TEMP/VoiceSwap.zip" > "$RUNNER_TEMP/VoiceSwap.zip.sha256"
-          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" \
-              --title "VoiceSwap $GITHUB_REF_NAME" \
-              --notes "Apple Silicon · macOS 14+. Install with the command in the README."
+          tag="$(cat "$RUNNER_TEMP/release/tag.txt")"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release already exists; bump the version instead of replacing its assets." >&2
+            exit 1
           fi
-          gh release upload "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/VoiceSwap.zip" \
-            "$RUNNER_TEMP/VoiceSwap.zip.sha256" --clobber
+          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "VoiceSwap $tag" --notes "Apple Silicon · macOS 14+. Ad-hoc signed."
+          gh release upload "$tag" "$RUNNER_TEMP/release/VoiceSwap.zip" "$RUNNER_TEMP/release/VoiceSwap.zip.sha256" "$RUNNER_TEMP/release/update.json"
+          # Keep the legacy manifest usable by already installed versions.
+          cp "$RUNNER_TEMP/release/update.json" update.json
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add update.json
+          git commit -m "Update VoiceSwap release manifest for $tag"
+          git push origin HEAD:main
+          gh release edit "$tag" --draft=false --latest
