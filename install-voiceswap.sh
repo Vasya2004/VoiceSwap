@@ -90,7 +90,7 @@ voice_install_bundle() {
 
 if [[ "${VOICESWAP_LIBRARY_ONLY:-0}" == 1 ]]; then return 0; fi
 REPOSITORY="${VOICESWAP_REPOSITORY:-Vasya2004/VoiceSwap}"
-VERSION="${VOICESWAP_VERSION:-0.3.5}"
+VERSION="${VOICESWAP_VERSION:-0.3.6}"
 APP_PATH="$(voice_app_path)"
 [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]] || { voice_fail 'Apple Silicon macOS required.'; exit 1; }
 [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 14 ]] || exit 1
