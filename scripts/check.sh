@@ -5,8 +5,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-bash -n install-voiceswap.sh scripts/build-app.sh scripts/check.sh scripts/package-model.sh
+bash -n install.sh install-voiceswap.sh scripts/build-app.sh scripts/check.sh scripts/package-model.sh scripts/install-local.sh scripts/prepare-release.sh scripts/test-install.sh uninstall.sh
 plutil -lint swift/Info.plist entitlements.plist
+python3 -m py_compile scripts/test-download.py && rm -rf scripts/__pycache__
 
 app_version="$(plutil -extract CFBundleShortVersionString raw -o - swift/Info.plist)"
 installer_version="$(sed -n 's/^VERSION="${VOICESWAP_VERSION:-\([^}]*\)}"$/\1/p' install-voiceswap.sh)"
@@ -25,9 +26,15 @@ grep -q 'Restarting the build natively for Apple Silicon' scripts/build-app.sh
 grep -q 'validate_output_app_path "$OUTPUT_APP"' scripts/build-app.sh
 grep -q 'EXPECTED_CONTENT_SHA256=' scripts/package-model.sh
 
-settings_save_handler="$(sed -n '/@objc private func saveSettingsClicked/,/private func captureAISettingsFields/p' swift/Sources/Parakey/main.swift)"
+settings_save_handler="$(sed -n '/@objc private func saveSettingsClicked/,/private func captureAISettingsFields/p' swift/Sources/Parakey/ControlPanel.swift)"
 grep -Fq 'settingsWindow?.performClose(sender)' <<<"$settings_save_handler" || {
     printf 'Settings save handler must close the settings window after a successful save.\n' >&2
+    exit 1
+}
+
+# The panel is launched as a child of the agent; macOS pgrep hides ancestors without -a.
+grep -Fq '["-a", "-f", "^' swift/Sources/Parakey/main.swift || {
+    printf 'Agent process lookup must use pgrep -a.\n' >&2
     exit 1
 }
 

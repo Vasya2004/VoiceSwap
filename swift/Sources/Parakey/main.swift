@@ -1,3 +1,4 @@
+import VoiceSwapCore
 // Parakey — push-to-talk dictation for macOS Apple Silicon.
 //
 // Swift menu-bar app. The runtime covers hotkey capture (`CGEventTap`), audio capture
@@ -67,7 +68,9 @@ let UPDATE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 let HOMEBREW_CASK_TAP = "shlgd/superdictate"
 let HOMEBREW_CASK_TOKEN = "shlgd/superdictate/superdictate"
 let HOMEBREW_CASK_INSTALLED_TOKEN = "parakey"
-let INSTALLED_APP_BUNDLE_PATH = "/Applications/VoiceSwap.app"
+let INSTALLED_APP_BUNDLE_PATH = Bundle.main.bundleURL.pathExtension == "app"
+    ? Bundle.main.bundleURL.path
+    : "/Applications/VoiceSwap.app"
 let AGENT_ARGUMENT = "--agent"
 let AGENT_LABEL = "com.vasya2004.voiceswap.agent"
 let APP_SUPPORT_DIR_NAME = "VoiceSwap"
@@ -84,9 +87,9 @@ let DIAGNOSTICS_LOG_MAX_BYTES = 128 * 1024
 let DIAGNOSTICS_LOG_MAX_LINES = 40
 let DIAGNOSTICS_LOG_MAX_LINE_CHARACTERS = 4096
 let TRANSCRIPT_HISTORY_ARCHIVE_MAX_ENTRIES = 100
-let RECORDING_HUD_BASE_SIZE = NSSize(width: 64, height: 38)
-let RECORDING_HUD_ANIMATE_IN_SECONDS: TimeInterval = 0.32
-let RECORDING_HUD_ANIMATE_OUT_SECONDS: TimeInterval = 0.23
+let RECORDING_HUD_BASE_SIZE = NSSize(width: 112, height: 38)
+let RECORDING_HUD_ANIMATE_IN_SECONDS = HUDMotion.openingSeconds
+let RECORDING_HUD_ANIMATE_OUT_SECONDS = HUDMotion.closingSeconds
 let RECORDING_HUD_TRANSCRIBING_RESOLVE_SECONDS: TimeInterval = 0.20
 let RECORDING_HUD_TRANSCRIBING_MIN_VISIBLE_SECONDS: TimeInterval = 0.24
 let RECORDING_HUD_TARGET_REFRESH_INTERVAL: TimeInterval = 0.16
@@ -215,7 +218,7 @@ let HOTKEY_CHOICES: [HotkeyChoice] = [
     HotkeyChoice(name: "F19",           keycode: 80,  isModifier: false, modifierFlag: nil),
 ]
 
-private let HOTKEY_KEY_NAMES_BY_KEYCODE: [CGKeyCode: String] = [
+let HOTKEY_KEY_NAMES_BY_KEYCODE: [CGKeyCode: String] = [
     0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V",
     11: "B", 12: "Q", 13: "W", 14: "E", 15: "R", 16: "Y", 17: "T", 18: "1", 19: "2",
     20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8",
@@ -230,13 +233,13 @@ private let HOTKEY_KEY_NAMES_BY_KEYCODE: [CGKeyCode: String] = [
     124: "Right Arrow", 125: "Down Arrow", 126: "Up Arrow",
 ]
 
-private func hotkeyKeyName(for keycode: CGKeyCode) -> String {
+func hotkeyKeyName(for keycode: CGKeyCode) -> String {
     FUNCTION_KEY_NAMES_BY_KEYCODE[keycode]
         ?? HOTKEY_KEY_NAMES_BY_KEYCODE[keycode]
         ?? "Key \(keycode)"
 }
 
-private func hotkeyModifierSymbols(_ flags: CGEventFlags) -> String {
+func hotkeyModifierSymbols(_ flags: CGEventFlags) -> String {
     var result = ""
     if flags.contains(.maskControl) { result += "⌃" }
     if flags.contains(.maskAlternate) { result += "⌥" }
@@ -246,7 +249,7 @@ private func hotkeyModifierSymbols(_ flags: CGEventFlags) -> String {
     return result
 }
 
-private func modifierHotkeyName(primary: HotkeyChoice,
+func modifierHotkeyName(primary: HotkeyChoice,
                                 requiredModifiers: CGEventFlags) -> String {
     var parts: [String] = []
     if requiredModifiers.contains(.maskControl) { parts.append("Control") }
@@ -735,7 +738,7 @@ func transcriptHistoryPageRange(itemCount: Int,
     return start..<min(itemCount, start + pageSize)
 }
 
-private let DICTATION_USAGE_MAX_DAYS = 400
+let DICTATION_USAGE_MAX_DAYS = 400
 
 struct DailyDictationUsage: Codable, Equatable {
     let day: String
@@ -1113,7 +1116,7 @@ struct AudioInputDevice: Equatable {
     let name: String
 }
 
-private let CORE_AUDIO_DEFAULT_AGGREGATE_PREFIX = "CADefaultDeviceAggregate-"
+let CORE_AUDIO_DEFAULT_AGGREGATE_PREFIX = "CADefaultDeviceAggregate-"
 
 struct TranscriptCorrection: Codable, Equatable, Sendable {
     let source: String
@@ -1644,7 +1647,7 @@ enum ModelIntegrity {
     }
 }
 
-private func resolvedFluidAudioSupportDirectory(_ override: URL?) -> URL? {
+func resolvedFluidAudioSupportDirectory(_ override: URL?) -> URL? {
     override
         ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("FluidAudio", isDirectory: true)
@@ -1786,7 +1789,7 @@ func removeSpeechModelCacheDirectory(_ cacheDir: URL) async throws -> Bool {
     }.value
 }
 
-private func isExistingPlainDirectory(_ path: String) -> Bool {
+func isExistingPlainDirectory(_ path: String) -> Bool {
     var st = stat()
     guard lstat(path, &st) == 0 else { return false }
     return (st.st_mode & S_IFMT) == S_IFDIR
@@ -1854,7 +1857,7 @@ func correctionImportMergeCapWarningText(existingCount: Int,
     return "Merging would produce \(mergedCount) corrections; Parakey keeps at most \(cap), so \(mergedCount - cap) would be dropped."
 }
 
-private func utf8ClippedPrefix(_ text: String, maxBytes: Int) -> String {
+func utf8ClippedPrefix(_ text: String, maxBytes: Int) -> String {
     guard maxBytes > 0 else { return "" }
     var result = ""
     var usedBytes = 0
@@ -1961,7 +1964,7 @@ func correctionSyncFingerprint(forWrittenData data: Data, at url: URL) -> Correc
                                          sha256: digest)
 }
 
-private func correctionSyncFileSHA256Hex(_ url: URL) throws -> String {
+func correctionSyncFileSHA256Hex(_ url: URL) throws -> String {
     let fd = Darwin.open(url.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
     guard fd >= 0 else {
         throw currentPOSIXError()
@@ -2366,6 +2369,13 @@ struct ProcessRunResult {
     let output: String
 }
 
+final class ProcessOutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func set(_ value: Data) { lock.lock(); data = value; lock.unlock() }
+    func get() -> Data { lock.lock(); defer { lock.unlock() }; return data }
+}
+
 enum SuperDictateAgentService {
     static var launchAgentURL: URL {
         let directory = FileManager.default.homeDirectoryForCurrentUser
@@ -2413,13 +2423,8 @@ enum SuperDictateAgentService {
     }
 
     static func isAgentRunning() -> Bool {
-        if let state = AgentRuntimeStateStore.read(),
-           state.pid > 0,
-           state.pid != getpid(),
-           processIsAlive(pid: state.pid) {
-            return true
-        }
-        return !agentProcessIDs().isEmpty
+        // A saved PID may have been reused by an unrelated process after a restart.
+        !agentProcessIDs().isEmpty
     }
 
     static func isAgentLoadedOrRunning() -> Bool {
@@ -2427,8 +2432,11 @@ enum SuperDictateAgentService {
     }
 
     static func agentProcessIDs() -> [Int32] {
+        // `-a`: macOS pgrep otherwise hides its caller's ancestors, and the
+        // control panel is usually launched as a child of the agent itself.
         let result = run("/usr/bin/pgrep",
-                         ["-f", "\(agentExecutablePath()) \(AGENT_ARGUMENT)"])
+                         ["-a", "-f", "^\(NSRegularExpression.escapedPattern(for: agentExecutablePath())) \(AGENT_ARGUMENT)$"],
+                         timeout: 5)
         guard result.status == 0 else { return [] }
         return result.output
             .split(whereSeparator: \.isNewline)
@@ -2486,26 +2494,48 @@ enum SuperDictateAgentService {
     }
 
     private static func runLaunchctl(_ arguments: [String]) -> ProcessRunResult {
-        run("/bin/launchctl", arguments)
+        run("/bin/launchctl", arguments, timeout: 10)
     }
 
+    /// Runs a helper tool without blocking forever: output is drained while the
+    /// tool runs (a full pipe cannot deadlock it) and a hung tool is terminated.
     @discardableResult
-    static func run(_ executable: String, _ arguments: [String]) -> ProcessRunResult {
+    static func run(_ executable: String, _ arguments: [String],
+                    timeout: TimeInterval? = nil) -> ProcessRunResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+        let output = ProcessOutputCollector()
+        let drained = DispatchSemaphore(value: 0)
         do {
             try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return ProcessRunResult(status: process.terminationStatus,
-                                    output: String(data: data, encoding: .utf8) ?? "")
         } catch {
             return ProcessRunResult(status: 127, output: error.localizedDescription)
         }
+        DispatchQueue.global(qos: .userInitiated).async {
+            output.set(pipe.fileHandleForReading.readDataToEndOfFile())
+            drained.signal()
+        }
+        let deadline: DispatchTime = timeout.map { .now() + $0 } ?? .distantFuture
+        if exited.wait(timeout: deadline) == .timedOut {
+            process.terminate()
+            if exited.wait(timeout: .now() + 1) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 1)
+            }
+            _ = drained.wait(timeout: .now() + 1)
+            let name = URL(fileURLWithPath: executable).lastPathComponent
+            log("\(name) \(arguments.first ?? "") timed out after \(Int(timeout ?? 0)) s")
+            return ProcessRunResult(status: 124, output: "\(name) timed out")
+        }
+        _ = drained.wait(timeout: .now() + 2)
+        return ProcessRunResult(status: process.terminationStatus,
+                                output: String(data: output.get(), encoding: .utf8) ?? "")
     }
 }
 
@@ -2527,10 +2557,10 @@ func privacySafeBundlePath(_ path: String) -> String {
     }
 }
 
-private let PRIVATE_LOG_FILE_MODE = mode_t(S_IRUSR | S_IWUSR)
-private let PRIVATE_HELPER_FILE_MODE = mode_t(S_IRUSR | S_IWUSR)
+let PRIVATE_LOG_FILE_MODE = mode_t(S_IRUSR | S_IWUSR)
+let PRIVATE_HELPER_FILE_MODE = mode_t(S_IRUSR | S_IWUSR)
 
-private func appendPrivateLogData(_ data: Data, to url: URL) throws {
+func appendPrivateLogData(_ data: Data, to url: URL) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                             withIntermediateDirectories: true)
     let flags = O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC | O_NOFOLLOW
@@ -2547,7 +2577,7 @@ private func appendPrivateLogData(_ data: Data, to url: URL) throws {
     try writeAllData(data, to: fd)
 }
 
-private func validateSingleLinkRegularFileDescriptor(_ fd: Int32) throws {
+func validateSingleLinkRegularFileDescriptor(_ fd: Int32) throws {
     var st = stat()
     guard Darwin.fstat(fd, &st) == 0 else {
         throw currentPOSIXError()
@@ -2560,7 +2590,7 @@ private func validateSingleLinkRegularFileDescriptor(_ fd: Int32) throws {
     }
 }
 
-private func writeAllData(_ data: Data, to fd: Int32) throws {
+func writeAllData(_ data: Data, to fd: Int32) throws {
     try data.withUnsafeBytes { rawBuffer in
         guard let base = rawBuffer.baseAddress else { return }
         var offset = 0
@@ -2578,11 +2608,11 @@ private func writeAllData(_ data: Data, to fd: Int32) throws {
     }
 }
 
-private func currentPOSIXError() -> POSIXError {
+func currentPOSIXError() -> POSIXError {
     POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
 }
 
-private func posixError(_ code: Int32) -> POSIXError {
+func posixError(_ code: Int32) -> POSIXError {
     POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
 }
 
@@ -2602,12 +2632,12 @@ extension ISO8601DateFormatter {
 // by each getter when the key is missing, rather than via a central
 // `register()` call.
 
-private func defaultAudioFileTranscriptionOutputDirectoryURL() -> URL {
+func defaultAudioFileTranscriptionOutputDirectoryURL() -> URL {
     FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
         ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
 }
 
-private func availableTranscriptOutputURL(for audioURL: URL,
+func availableTranscriptOutputURL(for audioURL: URL,
                                           in directoryURL: URL,
                                           fileManager: FileManager = .default) -> URL {
     let rawBaseName = audioURL.deletingPathExtension().lastPathComponent
@@ -3381,13 +3411,13 @@ enum Permission: String, CaseIterable, Equatable {
     case inputMonitoring = "Input Monitoring"
 }
 
-private enum ReadinessTransition: Equatable {
+enum ReadinessTransition: Equatable {
     case rebuildMenuOnly
     case blockForPermissions([Permission])
     case startHotkeyListener
 }
 
-private func readinessTransition(
+func readinessTransition(
     isReady: Bool,
     isCoreRuntimeReady: Bool,
     missingPermissions: [Permission]
@@ -3407,14 +3437,14 @@ private func readinessTransition(
         : .blockForPermissions(missingPermissions)
 }
 
-private enum AudioRouteChangeAction: Equatable {
+enum AudioRouteChangeAction: Equatable {
     case ignore
     case rebuildMenuOnly
     case deferRefresh
     case restartNow
 }
 
-private func audioRouteChangeAction(isTerminating: Bool,
+func audioRouteChangeAction(isTerminating: Bool,
                                     isRestartingAudioInput: Bool,
                                     isCoreRuntimeReady: Bool,
                                     isRecording: Bool,
@@ -3426,20 +3456,20 @@ private func audioRouteChangeAction(isTerminating: Bool,
     return .restartNow
 }
 
-private func audioConfigurationChangeIsSuppressed(now: TimeInterval,
+func audioConfigurationChangeIsSuppressed(now: TimeInterval,
                                                   suppressedUntil: TimeInterval?) -> Bool {
     guard let suppressedUntil else { return false }
     return now < suppressedUntil
 }
 
-private enum WakeRuntimeRecoveryAction: Equatable {
+enum WakeRuntimeRecoveryAction: Equatable {
     case ignore
     case deferUntilIdle
     case startAudioRuntime
     case startFullStartup
 }
 
-private func shouldResumeRuntimeAfterSystemSleep(isTerminating: Bool,
+func shouldResumeRuntimeAfterSystemSleep(isTerminating: Bool,
                                                  isCoreRuntimeReady: Bool,
                                                  isReady: Bool,
                                                  isRecording: Bool,
@@ -3448,7 +3478,7 @@ private func shouldResumeRuntimeAfterSystemSleep(isTerminating: Bool,
     return isCoreRuntimeReady || isReady || isRecording || audioIsRunning
 }
 
-private func wakeRuntimeRecoveryAction(shouldResumeAfterWake: Bool,
+func wakeRuntimeRecoveryAction(shouldResumeAfterWake: Bool,
                                        isTerminating: Bool,
                                        hasStartupTask: Bool,
                                        isBusy: Bool,
@@ -3458,7 +3488,7 @@ private func wakeRuntimeRecoveryAction(shouldResumeAfterWake: Bool,
     return isSpeechModelReady ? .startAudioRuntime : .startFullStartup
 }
 
-private enum StartupFailureStage {
+enum StartupFailureStage {
     case speechModel
     case audioInput
     case hotkeyListener
@@ -3480,7 +3510,7 @@ private enum StartupFailureStage {
     }
 }
 
-private struct StartupFailure {
+struct StartupFailure {
     let stage: StartupFailureStage
     let detail: String
 
@@ -3488,16 +3518,16 @@ private struct StartupFailure {
     var retryTitle: String { stage.retryTitle }
 }
 
-private enum PreviousExitNoticeAction: Equatable {
+enum PreviousExitNoticeAction: Equatable {
     case none
     case showNotice
 }
 
-private func previousExitNoticeAction(previousRunWasActive: Bool) -> PreviousExitNoticeAction {
+func previousExitNoticeAction(previousRunWasActive: Bool) -> PreviousExitNoticeAction {
     previousRunWasActive ? .showNotice : .none
 }
 
-private func speechModelFailureDetail(errorDescription: String) -> String {
+func speechModelFailureDetail(errorDescription: String) -> String {
     let lower = errorDescription.lowercased()
     let looksLikeIntegrityFailure = [
         "sha",
@@ -3553,7 +3583,7 @@ private func speechModelFailureDetail(errorDescription: String) -> String {
     """
 }
 
-private func fourCharacterCodeString(forRawOSStatus raw: UInt32) -> String? {
+func fourCharacterCodeString(forRawOSStatus raw: UInt32) -> String? {
     let bytes = [
         UInt8((raw >> 24) & 0xff),
         UInt8((raw >> 16) & 0xff),
@@ -3564,7 +3594,7 @@ private func fourCharacterCodeString(forRawOSStatus raw: UInt32) -> String? {
     return String(bytes: bytes, encoding: .ascii)
 }
 
-private func formattedOSStatusCode(_ code: Int) -> String {
+func formattedOSStatusCode(_ code: Int) -> String {
     let raw = UInt32(bitPattern: Int32(truncatingIfNeeded: code))
     let hex = String(format: "0x%08x", raw)
     if let fourCharacterCode = fourCharacterCodeString(forRawOSStatus: raw) {
@@ -3573,11 +3603,11 @@ private func formattedOSStatusCode(_ code: Int) -> String {
     return "OSStatus \(code) (\(hex))"
 }
 
-private func formattedOSStatus(_ status: OSStatus) -> String {
+func formattedOSStatus(_ status: OSStatus) -> String {
     formattedOSStatusCode(Int(status))
 }
 
-private func coreAudioOSStatusCode(from error: NSError) -> Int? {
+func coreAudioOSStatusCode(from error: NSError) -> Int? {
     let domain = error.domain.lowercased()
     guard error.domain == NSOSStatusErrorDomain
         || domain.contains("coreaudio")
@@ -3587,13 +3617,13 @@ private func coreAudioOSStatusCode(from error: NSError) -> Int? {
     return error.code
 }
 
-private func stringValue(fromUserInfoValue value: Any?) -> String? {
+func stringValue(fromUserInfoValue value: Any?) -> String? {
     guard let value else { return nil }
     let text = String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
     return text.isEmpty || text == "nil" ? nil : text
 }
 
-private func failedAudioCallDescription(from error: NSError) -> String? {
+func failedAudioCallDescription(from error: NSError) -> String? {
     for key in ["failed call", "failedCall", "AVAudioEngineFailedCall"] {
         if let text = stringValue(fromUserInfoValue: error.userInfo[key]) {
             return text
@@ -3610,7 +3640,7 @@ private func failedAudioCallDescription(from error: NSError) -> String? {
     return nil
 }
 
-private func audioStartupErrorDescription(_ error: Error) -> String {
+func audioStartupErrorDescription(_ error: Error) -> String {
     let nsError = error as NSError
     var lines = [nsError.localizedDescription]
     if let statusCode = coreAudioOSStatusCode(from: nsError) {
@@ -3622,14 +3652,14 @@ private func audioStartupErrorDescription(_ error: Error) -> String {
     return lines.joined(separator: "\n")
 }
 
-private func singleLineLogDetail(_ text: String) -> String {
+func singleLineLogDetail(_ text: String) -> String {
     text.components(separatedBy: .newlines)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
         .joined(separator: " | ")
 }
 
-private func audioInputFailureDetail(errorDescription: String) -> String {
+func audioInputFailureDetail(errorDescription: String) -> String {
     let lower = errorDescription.lowercased()
     let looksLikeCoreAudioFailure = lower.contains("coreaudio")
         || lower.contains("avfaudio")
@@ -3644,7 +3674,7 @@ private func audioInputFailureDetail(errorDescription: String) -> String {
     """
 }
 
-private func startupFailureDetail(stage: StartupFailureStage, errorDescription: String) -> String {
+func startupFailureDetail(stage: StartupFailureStage, errorDescription: String) -> String {
     switch stage {
     case .speechModel:
         return speechModelFailureDetail(errorDescription: errorDescription)
@@ -3655,39 +3685,39 @@ private func startupFailureDetail(stage: StartupFailureStage, errorDescription: 
     }
 }
 
-private func startupFailureDetail(stage: StartupFailureStage, error: Error) -> String {
+func startupFailureDetail(stage: StartupFailureStage, error: Error) -> String {
     let errorDescription = stage == .audioInput
         ? audioStartupErrorDescription(error)
         : error.localizedDescription
     return startupFailureDetail(stage: stage, errorDescription: errorDescription)
 }
 
-private func startupFailureLogDetail(stage: StartupFailureStage, error: Error) -> String {
+func startupFailureLogDetail(stage: StartupFailureStage, error: Error) -> String {
     let detail = stage == .audioInput
         ? audioStartupErrorDescription(error)
         : String(describing: error)
     return singleLineLogDetail(detail)
 }
 
-private func audioStartupRetryDelaySeconds(afterFailedAttempt failedAttempt: Int,
+func audioStartupRetryDelaySeconds(afterFailedAttempt failedAttempt: Int,
                                            retryDelays: [UInt64] = AUDIO_START_RETRY_DELAYS_SECONDS) -> UInt64? {
     guard failedAttempt > 0, failedAttempt <= retryDelays.count else { return nil }
     return retryDelays[failedAttempt - 1]
 }
 
-private func audioStartupRetryStatusTitle(nextAttempt: Int,
+func audioStartupRetryStatusTitle(nextAttempt: Int,
                                           totalAttempts: Int,
                                           delaySeconds: UInt64) -> String {
     "Audio input failed; retrying in \(delaySeconds)s (\(nextAttempt)/\(totalAttempts))…"
 }
 
-private struct SetupChecklistRowState: Equatable {
+struct SetupChecklistRowState: Equatable {
     let detail: String
     let status: String
     let buttonTitle: String?
 }
 
-private func speechModelSetupRowState(profile: SpeechModelProfile,
+func speechModelSetupRowState(profile: SpeechModelProfile,
                                       isSpeechModelReady: Bool,
                                       isStartupInProgress: Bool,
                                       startupStatusTitle: String,
@@ -3712,7 +3742,7 @@ private func speechModelSetupRowState(profile: SpeechModelProfile,
                                   buttonTitle: nil)
 }
 
-private func audioInputSetupRowState(isSpeechModelReady: Bool,
+func audioInputSetupRowState(isSpeechModelReady: Bool,
                                      isCoreRuntimeReady: Bool,
                                      isStartupInProgress: Bool,
                                      startupStatusTitle: String = "Starting audio input…",
@@ -3742,7 +3772,7 @@ private func audioInputSetupRowState(isSpeechModelReady: Bool,
                                   buttonTitle: nil)
 }
 
-private func hotkeySetupRowState(isReady: Bool,
+func hotkeySetupRowState(isReady: Bool,
                                  hotkeyTestSucceeded: Bool,
                                  triggerMode: TriggerMode,
                                  hotkeyName: String,
@@ -3868,7 +3898,7 @@ final class Permissions {
 // Right Option is a modifier so it doesn't fire keyDown — we watch
 // flagsChanged and diff the .option flag.
 
-private struct HotkeyEventSnapshot: Sendable {
+struct HotkeyEventSnapshot: Sendable {
     let typeRawValue: UInt32
     let keycode: CGKeyCode
     let flagsRawValue: UInt64
@@ -3879,19 +3909,19 @@ private struct HotkeyEventSnapshot: Sendable {
     }
 }
 
-private enum HotkeyRecordingDecision: Equatable {
+enum HotkeyRecordingDecision: Equatable {
     case accept(HotkeyChoice)
     case reject(String)
     case ignore
 }
 
-private enum HotkeyPreferenceUpdateResult: Equatable {
+enum HotkeyPreferenceUpdateResult: Equatable {
     case saved(HotkeyChoice)
     case rejected(String)
     case rolledBack(previous: HotkeyChoice, message: String)
 }
 
-private func hotkeyPreferenceUpdateResult(
+func hotkeyPreferenceUpdateResult(
     requested: HotkeyChoice,
     previous: HotkeyChoice,
     persisted: HotkeyChoice
@@ -3911,13 +3941,13 @@ private func hotkeyPreferenceUpdateResult(
     return .saved(recordable)
 }
 
-private enum HotkeyRecorderRestartAction: Equatable {
+enum HotkeyRecorderRestartAction: Equatable {
     case none
     case restoredListener
     case recordFailure
 }
 
-private func hotkeyRecorderRestartAction(
+func hotkeyRecorderRestartAction(
     shouldRestoreHotkeyTap: Bool,
     isTerminating: Bool,
     restartSucceeded: Bool
@@ -3926,7 +3956,7 @@ private func hotkeyRecorderRestartAction(
     return restartSucceeded ? .restoredListener : .recordFailure
 }
 
-private func hotkeyRecordingDecision(for event: HotkeyEventSnapshot) -> HotkeyRecordingDecision {
+func hotkeyRecordingDecision(for event: HotkeyEventSnapshot) -> HotkeyRecordingDecision {
     if event.isAutoRepeat { return .ignore }
 
     if event.typeRawValue == CGEventType.flagsChanged.rawValue {
@@ -3953,14 +3983,14 @@ private func hotkeyRecordingDecision(for event: HotkeyEventSnapshot) -> HotkeyRe
     return .accept(choice)
 }
 
-private enum HotkeyRecorderCaptureResult: Equatable {
+enum HotkeyRecorderCaptureResult: Equatable {
     case candidate(HotkeyChoice)
     case reject(String)
     case cancel
     case ignore
 }
 
-private struct HotkeyRecorderCaptureState {
+struct HotkeyRecorderCaptureState {
     mutating func consume(_ event: HotkeyEventSnapshot) -> HotkeyRecorderCaptureResult {
         if event.typeRawValue == CGEventType.keyDown.rawValue,
            event.keycode == ESCAPE_KEYCODE {
@@ -3979,7 +4009,7 @@ private struct HotkeyRecorderCaptureState {
 }
 
 @MainActor
-private final class HotkeyRecorderController: NSObject, NSWindowDelegate {
+final class HotkeyRecorderController: NSObject, NSWindowDelegate {
     private let language: InterfaceLanguage
     private let panel: NSPanel
     private let status: NSTextField
@@ -4256,7 +4286,7 @@ private final class HotkeyRecorderController: NSObject, NSWindowDelegate {
     }
 }
 
-private func hotkeyFlags(from modifiers: NSEvent.ModifierFlags) -> CGEventFlags {
+func hotkeyFlags(from modifiers: NSEvent.ModifierFlags) -> CGEventFlags {
     var result: CGEventFlags = []
     if modifiers.contains(.control) { result.insert(.maskControl) }
     if modifiers.contains(.option) { result.insert(.maskAlternate) }
@@ -4266,7 +4296,7 @@ private func hotkeyFlags(from modifiers: NSEvent.ModifierFlags) -> CGEventFlags 
     return result
 }
 
-private enum HotkeyTransitionAction: Equatable, Sendable {
+enum HotkeyTransitionAction: Equatable, Sendable {
     case press
     case release
     case releaseAlternate
@@ -4278,7 +4308,7 @@ private enum HotkeyTransitionAction: Equatable, Sendable {
     case rejectedBusyPress
 }
 
-private struct HotkeyTransitionResult: Equatable, Sendable {
+struct HotkeyTransitionResult: Equatable, Sendable {
     let suppress: Bool
     let actions: [HotkeyTransitionAction]
 
@@ -4286,7 +4316,7 @@ private struct HotkeyTransitionResult: Equatable, Sendable {
     static let suppressOnly = HotkeyTransitionResult(suppress: true, actions: [])
 }
 
-private struct RepeatedTriggerGate {
+struct RepeatedTriggerGate {
     private var lastAcceptedAt: TimeInterval?
 
     mutating func accept(at now: TimeInterval, minimumInterval: TimeInterval) -> Bool {
@@ -4300,14 +4330,14 @@ private struct RepeatedTriggerGate {
     }
 }
 
-private enum HotkeyShortcutEdge: Equatable {
+enum HotkeyShortcutEdge: Equatable {
     case press
     case release
     case suppress
     case pass
 }
 
-private struct HotkeyShortcutResult: Equatable {
+struct HotkeyShortcutResult: Equatable {
     let edge: HotkeyShortcutEdge
     let suppress: Bool
 
@@ -4323,7 +4353,7 @@ private struct HotkeyShortcutResult: Equatable {
     }
 }
 
-private struct HotkeyShortcutState {
+struct HotkeyShortcutState {
     private var primaryModifierDown = false
     private var shortcutDown = false
 
@@ -4394,7 +4424,7 @@ private struct HotkeyShortcutState {
     }
 }
 
-private struct HotkeyTransitionState {
+struct HotkeyTransitionState {
     private var standardShortcutState = HotkeyShortcutState()
     private var enterShortcutState = HotkeyShortcutState()
     private var historyShortcutState = HotkeyShortcutState()
@@ -4849,7 +4879,7 @@ final class HotkeyListener {
 // the observer and that clears `onConfigurationChange` at
 // termination.
 
-private struct CapturedAudioSegments {
+struct CapturedAudioSegments {
     let segments: [[Float]]
     let sampleCount: Int
 
@@ -4864,7 +4894,7 @@ private struct CapturedAudioSegments {
     }
 }
 
-private struct CapturedRecording {
+struct CapturedRecording {
     let samples: [Float]
     let recoveryURL: URL?
     let detachSeconds: TimeInterval
@@ -4872,7 +4902,7 @@ private struct CapturedRecording {
     let flattenSeconds: TimeInterval
 }
 
-private enum PendingDictationRecovery {
+enum PendingDictationRecovery {
     private static let directoryName = "PendingDictations"
     private static let fileExtension = "sdaudio"
     private static let magic = Data("SDAR".utf8)
@@ -4986,7 +5016,7 @@ private enum PendingDictationRecovery {
     }
 }
 
-private final class PendingDictationJournal: @unchecked Sendable {
+final class PendingDictationJournal: @unchecked Sendable {
     let url: URL
     private let queue = DispatchQueue(label: "SuperDictate.PendingDictationJournal",
                                       qos: .utility)
@@ -5040,7 +5070,7 @@ private final class PendingDictationJournal: @unchecked Sendable {
     }
 }
 
-private struct AudioSampleAccumulator {
+struct AudioSampleAccumulator {
     private var segments: [[Float]] = []
     private(set) var sampleCount = 0
 
@@ -5177,7 +5207,7 @@ final class AudioCapture: @unchecked Sendable {
         log("AudioCapture: engine started")
     }
 
-    fileprivate func startRecording(inputDevicePreference: String = "",
+    func startRecording(inputDevicePreference: String = "",
                                     recoveryJournal: PendingDictationJournal? = nil) throws {
         if isEngineStarted {
             beginRecording(recoveryJournal: recoveryJournal)
@@ -5299,7 +5329,7 @@ final class AudioCapture: @unchecked Sendable {
     }
 
     /// Stops recording, flushes its crash-recovery journal, and returns the captured samples.
-    fileprivate func endRecording() -> CapturedRecording {
+    func endRecording() -> CapturedRecording {
         let startedAt = ProcessInfo.processInfo.systemUptime
         lock.lock()
         _isRunning = false
@@ -5569,7 +5599,7 @@ final class AudioCapture: @unchecked Sendable {
     }
 }
 
-private final class AudioConverterInputProvider: @unchecked Sendable {
+final class AudioConverterInputProvider: @unchecked Sendable {
     private let buffer: AVAudioPCMBuffer
     private let lock = NSLock()
     private var didProvideBuffer = false
@@ -5607,11 +5637,11 @@ private final class AudioConverterInputProvider: @unchecked Sendable {
 // ever break: it refuses (and, in DEBUG, asserts on) a re-entrant
 // call instead of corrupting ANE state.
 
-private enum LoadedSpeechEngine {
+enum LoadedSpeechEngine {
     case parakeetV3(AsrManager)
 }
 
-private struct TranscriptionWorkerResult: Sendable {
+struct TranscriptionWorkerResult: Sendable {
     let text: String
     let workerQueueSeconds: Double
     let decoderPreparationSeconds: Double
@@ -5629,7 +5659,7 @@ private struct TranscriptionWorkerResult: Sendable {
     }
 }
 
-private struct CompletedTranscriptionWorkerResult: Sendable {
+struct CompletedTranscriptionWorkerResult: Sendable {
     let transcription: TranscriptionWorkerResult
     let completedAt: TimeInterval
 }
@@ -6137,7 +6167,7 @@ enum AICleanupError: LocalizedError {
     }
 }
 
-private final class AICleanupSessionDelegate: NSObject,
+final class AICleanupSessionDelegate: NSObject,
                                               URLSessionTaskDelegate,
                                               @unchecked Sendable {
     func urlSession(_ session: URLSession,
@@ -6521,12 +6551,12 @@ enum AIKeyStore {
     }
 }
 
-private enum AICleanupConfigurationIssue: Equatable {
+enum AICleanupConfigurationIssue: Equatable {
     case baseURL
     case model
 }
 
-private func aiCleanupConfigurationIssue(enabled: Bool,
+func aiCleanupConfigurationIssue(enabled: Bool,
                                          baseURL: String,
                                          model: String) -> AICleanupConfigurationIssue? {
     guard enabled else { return nil }
@@ -6545,12 +6575,12 @@ private func aiCleanupConfigurationIssue(enabled: Bool,
 
 // MARK: - Recording lifecycle decisions
 
-private enum RecordingReleaseAction: Equatable {
+enum RecordingReleaseAction: Equatable {
     case discardTooShort(duration: Double)
     case transcribe(duration: Double)
 }
 
-private func recordingReleaseAction(capturedSampleCount: Int,
+func recordingReleaseAction(capturedSampleCount: Int,
                                     sampleRate: Double = SAMPLE_RATE,
                                     minimumClipSeconds: Double = MIN_CLIP_SECONDS) -> RecordingReleaseAction {
     let duration = sampleRate > 0 ? Double(max(0, capturedSampleCount)) / sampleRate : 0
@@ -6559,25 +6589,25 @@ private func recordingReleaseAction(capturedSampleCount: Int,
         : .transcribe(duration: duration)
 }
 
-private struct DictationTextProcessingResult: Equatable {
+struct DictationTextProcessingResult: Equatable {
     let text: String
     let appliedCorrectionCount: Int
     let removedFillerWordCount: Int
 }
 
-private func removingFinalPeriod(from text: String) -> String {
+func removingFinalPeriod(from text: String) -> String {
     guard text.last == "." else { return text }
     let textWithoutFinalPeriod = text.dropLast()
     guard textWithoutFinalPeriod.last != "." else { return text }
     return String(textWithoutFinalPeriod)
 }
 
-private func finalizedDictationText(_ text: String,
+func finalizedDictationText(_ text: String,
                                     removeFinalPeriod: Bool) -> String {
     removeFinalPeriod ? removingFinalPeriod(from: text) : text
 }
 
-private func processedDictationText(rawTranscript: String,
+func processedDictationText(rawTranscript: String,
                                     corrections: [TranscriptCorrection],
                                     removeFillerWords: Bool,
                                     removeFinalPeriod: Bool = false,
@@ -6602,1287 +6632,6 @@ private func processedDictationText(rawTranscript: String,
     return DictationTextProcessingResult(text: finalText,
                                          appliedCorrectionCount: corrected.appliedCount,
                                          removedFillerWordCount: removedFillerWordCount)
-}
-
-// MARK: - Text insertion
-//
-// Default path: write to general pasteboard, post Cmd+V. If that setup
-// fails, fall back to direct Unicode events so a pasteboard problem
-// does not automatically lose the transcript. After a successful paste
-// event, restore the previous clipboard if it is still at our temporary
-// write, so dictation doesn't replace what the user had copied before
-// speaking.
-
-func pastedText(from correctedTranscript: String, suffix: PasteSuffix) -> String {
-    switch suffix {
-    case .appendSpace:
-        return correctedTranscript + " "
-    case .none:
-        return correctedTranscript
-    case .appendNewline:
-        return correctedTranscript + "\n"
-    }
-}
-
-func speechModelStartupStatusTitle(_ progress: DownloadUtils.DownloadProgress) -> String {
-    switch progress.phase {
-    case .listing:
-        return "Checking speech model files…"
-    case .downloading(let completedFiles, let totalFiles):
-        guard totalFiles > 0 else { return "Loading cached speech model…" }
-        let downloadFraction = min(max(progress.fractionCompleted / 0.5, 0), 1)
-        let percent = min(100, max(0, Int((downloadFraction * 100).rounded())))
-        return "Downloading speech model… \(percent)% (\(completedFiles)/\(totalFiles))"
-    case .compiling:
-        return "Preparing speech model…"
-    }
-}
-
-func speechModelStartupProgressValue(_ progress: DownloadUtils.DownloadProgress) -> Double? {
-    switch progress.phase {
-    case .downloading(_, let totalFiles):
-        guard totalFiles > 0 else { return nil }
-        let raw = min(max(progress.fractionCompleted / 0.5, 0), 1)
-        return (raw * 100).rounded() / 100.0   // round to 1%
-    case .listing, .compiling:
-        return nil
-    }
-}
-
-func speechModelStartupPhaseName(_ progress: DownloadUtils.DownloadProgress) -> String {
-    switch progress.phase {
-    case .listing:
-        return "listing"
-    case .downloading:
-        return "downloading"
-    case .compiling:
-        return "preparing"
-    }
-}
-
-struct SpeechModelDownloadMetrics: Equatable, Sendable {
-    let downloadedBytes: Int64
-    let totalBytes: Int64
-    let bytesPerSecond: Double?
-    let estimatedSecondsRemaining: Double?
-}
-
-struct SpeechModelProgressUpdate: Sendable {
-    let title: String
-    let fraction: Double?
-    let phase: String
-    let metrics: SpeechModelDownloadMetrics?
-    let didAdvance: Bool
-    let shouldDispatch: Bool
-}
-
-/// Thread-safe progress sampler. FluidAudio calls its handler on an
-/// unspecified queue and may report many chunks per rendered frame.
-final class SpeechModelProgressTracker: @unchecked Sendable {
-    private var lastTitle: String = ""
-    private var lastFraction: Double? = nil
-    private var lastPhase: String?
-    private var lastDownloadedBytes: Int64?
-    private var sampleBytes: Int64?
-    private var sampleTime: TimeInterval?
-    private var smoothedBytesPerSecond: Double?
-    private var lastDispatchTime: TimeInterval?
-    private let lock = NSLock()
-
-    func consume(_ progress: DownloadUtils.DownloadProgress,
-                 totalBytes: Int64,
-                 now suppliedNow: TimeInterval? = nil) -> SpeechModelProgressUpdate {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let now = suppliedNow ?? ProcessInfo.processInfo.systemUptime
-        let title = speechModelStartupStatusTitle(progress)
-        let fraction = speechModelStartupProgressValue(progress)
-        let phase = speechModelStartupPhaseName(progress)
-        let phaseChanged = phase != lastPhase
-
-        if phaseChanged {
-            lastDownloadedBytes = nil
-            sampleBytes = nil
-            sampleTime = nil
-            smoothedBytesPerSecond = nil
-        }
-
-        var metrics: SpeechModelDownloadMetrics?
-        var didAdvance = phaseChanged
-        if case .downloading(_, let totalFiles) = progress.phase,
-           totalFiles > 0,
-           totalBytes > 0 {
-            let rawFraction = min(max(progress.fractionCompleted / 0.5, 0), 1)
-            let downloadedBytes = min(
-                totalBytes,
-                max(0, Int64((Double(totalBytes) * rawFraction).rounded(.down)))
-            )
-
-            if let previous = lastDownloadedBytes {
-                didAdvance = downloadedBytes > previous
-            }
-            lastDownloadedBytes = downloadedBytes
-
-            if let previousBytes = sampleBytes,
-               let previousTime = sampleTime {
-                let elapsed = now - previousTime
-                let byteDelta = downloadedBytes - previousBytes
-                if byteDelta < 0 {
-                    sampleBytes = downloadedBytes
-                    sampleTime = now
-                    smoothedBytesPerSecond = nil
-                } else if elapsed >= 0.2, byteDelta > 0 {
-                    let instantaneous = Double(byteDelta) / elapsed
-                    if instantaneous.isFinite, instantaneous > 0 {
-                        if let smoothed = smoothedBytesPerSecond {
-                            smoothedBytesPerSecond = (smoothed * 0.72) + (instantaneous * 0.28)
-                        } else {
-                            smoothedBytesPerSecond = instantaneous
-                        }
-                    }
-                    sampleBytes = downloadedBytes
-                    sampleTime = now
-                }
-            } else {
-                sampleBytes = downloadedBytes
-                sampleTime = now
-            }
-
-            let speed = smoothedBytesPerSecond.flatMap {
-                $0.isFinite && $0 > 0 ? $0 : nil
-            }
-            let remaining = speed.flatMap { measuredSpeed -> Double? in
-                let seconds = Double(max(0, totalBytes - downloadedBytes)) / measuredSpeed
-                return seconds.isFinite ? seconds : nil
-            }
-            metrics = SpeechModelDownloadMetrics(
-                downloadedBytes: downloadedBytes,
-                totalBytes: totalBytes,
-                bytesPerSecond: speed,
-                estimatedSecondsRemaining: remaining
-            )
-        }
-
-        let timedRefresh = lastDispatchTime.map { now - $0 >= 0.5 } ?? true
-        let downloadFinished = phase == "downloading" && fraction == 1
-        let shouldDispatch: Bool
-        if phase == "downloading" {
-            shouldDispatch = phaseChanged || timedRefresh || downloadFinished
-        } else {
-            shouldDispatch = phaseChanged || title != lastTitle || fraction != lastFraction
-        }
-
-        if shouldDispatch {
-            lastDispatchTime = now
-        }
-        lastTitle = title
-        lastFraction = fraction
-        lastPhase = phase
-        return SpeechModelProgressUpdate(title: title,
-                                         fraction: fraction,
-                                         phase: phase,
-                                         metrics: metrics,
-                                         didAdvance: didAdvance,
-                                         shouldDispatch: shouldDispatch)
-    }
-}
-
-func speechModelNetworkProgressIsStalled(phase: String?,
-                                         progressUpdatedAt: TimeInterval?,
-                                         now: TimeInterval,
-                                         threshold: TimeInterval = 12) -> Bool {
-    guard phase == "listing" || phase == "downloading",
-          let progressUpdatedAt else { return false }
-    return now - progressUpdatedAt >= threshold
-}
-
-enum TextInsertionStrategy: String {
-    case clipboardPaste
-    case directUnicode
-
-    var displayName: String {
-        switch self {
-        case .clipboardPaste: return "Clipboard paste"
-        case .directUnicode: return "Direct Unicode typing"
-        }
-    }
-}
-
-struct InsertionTargetScreenGeometry: Sendable {
-    let frame: NSRect
-    let visibleFrame: NSRect
-}
-
-struct InsertionTargetQueryContext: Sendable {
-    let applicationPID: pid_t
-    let applicationName: String
-    let bundleIdentifier: String
-    let screens: [InsertionTargetScreenGeometry]
-    let coordinateReferenceMaxY: CGFloat
-    let lastClickPoint: NSPoint?
-}
-
-struct FocusedInsertionTargetIdentity: Equatable, Sendable {
-    let applicationPID: pid_t
-    let windowToken: UInt
-    let elementToken: UInt
-}
-
-struct FocusedInsertionTargetFrame: Sendable {
-    let frame: NSRect
-    let visualFrame: NSRect
-    let resolutionKind: String
-    let identity: FocusedInsertionTargetIdentity
-}
-
-struct FocusedInsertionTargetQueryResult: Sendable {
-    let applicationPID: pid_t
-    let applicationName: String
-    let bundleIdentifier: String
-    let focusedWindowFrame: NSRect?
-    let focusedWindowToken: UInt
-    let target: FocusedInsertionTargetFrame?
-    let diagnostic: String
-}
-
-enum RecordingHUDTargetDecision {
-    case none
-    case update(FocusedInsertionTargetFrame)
-    case switchTarget(FocusedInsertionTargetFrame)
-}
-
-struct RecordingHUDTargetStabilizer {
-    private(set) var initialApplicationPID: pid_t?
-    private(set) var confirmedIdentity: FocusedInsertionTargetIdentity?
-    private var pendingIdentity: FocusedInsertionTargetIdentity?
-    private var pendingCount = 0
-
-    mutating func reset(initialApplicationPID: pid_t?) {
-        self.initialApplicationPID = initialApplicationPID
-        confirmedIdentity = nil
-        pendingIdentity = nil
-        pendingCount = 0
-    }
-
-    mutating func observe(_ target: FocusedInsertionTargetFrame?) -> RecordingHUDTargetDecision {
-        guard let target else {
-            pendingIdentity = nil
-            pendingCount = 0
-            return .none
-        }
-
-        if confirmedIdentity == target.identity {
-            pendingIdentity = nil
-            pendingCount = 0
-            return .update(target)
-        }
-
-        let requiredCount: Int
-        if let confirmedIdentity {
-            requiredCount = confirmedIdentity.applicationPID == target.identity.applicationPID ? 2 : 3
-        } else {
-            requiredCount = initialApplicationPID == target.identity.applicationPID ? 1 : 3
-        }
-
-        if pendingIdentity == target.identity {
-            pendingCount += 1
-        } else {
-            pendingIdentity = target.identity
-            pendingCount = 1
-        }
-
-        guard pendingCount >= requiredCount else { return .none }
-        confirmedIdentity = target.identity
-        pendingIdentity = nil
-        pendingCount = 0
-        return .switchTarget(target)
-    }
-}
-
-actor FocusedInsertionTargetTracker {
-    func query(context: InsertionTargetQueryContext) -> FocusedInsertionTargetQueryResult {
-        FocusedInsertionTargetLocator.query(context: context)
-    }
-}
-
-private enum FocusedInsertionTargetLocator {
-    private static let editableAttributeName = "AXEditable"
-    private static let frameAttributeName = "AXFrame"
-    private static let selectedTextMarkerRangeAttributeName = "AXSelectedTextMarkerRange"
-    private static let boundsForTextMarkerRangeAttributeName = "AXBoundsForTextMarkerRange"
-    private static let textElementRoles: Set<String> = [
-        "AXTextField",
-        "AXTextArea",
-        "AXComboBox",
-    ]
-    private static let textElementSubroles: Set<String> = [
-        "AXSearchField",
-    ]
-    private static let queryBudget: TimeInterval = 0.28
-    private static let messagingTimeout: Float = 0.16
-    private static let maximumScannedElements = 900
-    private static let maximumScanDepth = 20
-
-    private struct SearchNode {
-        let element: AXUIElement
-        let depth: Int
-        let assumeFocused: Bool
-    }
-
-    static func query(context: InsertionTargetQueryContext) -> FocusedInsertionTargetQueryResult {
-        let startedAt = ProcessInfo.processInfo.systemUptime
-        let deadline = startedAt + queryBudget
-        guard AXIsProcessTrusted() else {
-            return result(context: context,
-                          focusedWindowFrame: nil,
-                          focusedWindowToken: 0,
-                          target: nil,
-                          detail: "accessibility permission unavailable",
-                          startedAt: startedAt)
-        }
-
-        let app = AXUIElementCreateApplication(context.applicationPID)
-        AXUIElementSetMessagingTimeout(app, messagingTimeout)
-
-        let focusedResult = copyAttribute(app, kAXFocusedUIElementAttribute as CFString)
-        let focused = axElement(from: focusedResult.value)
-        let focusedRole = focused.flatMap {
-            stringAttribute($0, attribute: kAXRoleAttribute as CFString)
-        } ?? "none"
-
-        let focusedWindow = focused.flatMap(windowElement(for:))
-            ?? elementAttribute(app, kAXFocusedWindowAttribute as CFString)
-            ?? elementAttribute(app, kAXMainWindowAttribute as CFString)
-        if let focusedWindow {
-            AXUIElementSetMessagingTimeout(focusedWindow, messagingTimeout)
-        }
-        let focusedWindowFrame = focusedWindow.flatMap {
-            elementFrame($0, context: context)
-        }
-        let focusedWindowToken = focusedWindow.map(CFHash) ?? 0
-
-        if let focused {
-            AXUIElementSetMessagingTimeout(focused, messagingTimeout)
-            if let target = directTargetFrame(in: focused,
-                                              assumeFocused: true,
-                                              allowUnfocusedTextElement: false,
-                                              resolutionPrefix: "focused",
-                                              windowToken: focusedWindowToken,
-                                              context: context) {
-                return result(context: context,
-                              focusedWindowFrame: focusedWindowFrame,
-                              focusedWindowToken: focusedWindowToken,
-                              target: target,
-                              detail: "focused=\(focusedRole), direct",
-                              startedAt: startedAt)
-            }
-        }
-
-        if let clickPoint = context.lastClickPoint,
-           focusedWindowFrame?.insetBy(dx: -8, dy: -8).contains(clickPoint) != false,
-           let target = targetAtLastClick(clickPoint,
-                                          app: app,
-                                          windowToken: focusedWindowToken,
-                                          context: context) {
-            return result(context: context,
-                          focusedWindowFrame: focusedWindowFrame,
-                          focusedWindowToken: focusedWindowToken,
-                          target: target,
-                          detail: "focused=\(focusedRole), click hit-test",
-                          startedAt: startedAt)
-        }
-
-        var scannedCount = 0
-        if let focused,
-           let target = findFocusedTextTarget(in: focused,
-                                              rootAssumeFocused: true,
-                                              windowToken: focusedWindowToken,
-                                              context: context,
-                                              deadline: deadline,
-                                              scannedCount: &scannedCount) {
-            return result(context: context,
-                          focusedWindowFrame: focusedWindowFrame,
-                          focusedWindowToken: focusedWindowToken,
-                          target: target,
-                          detail: "focused=\(focusedRole), focused subtree, scanned=\(scannedCount)",
-                          startedAt: startedAt)
-        }
-
-        if let focusedWindow,
-           ProcessInfo.processInfo.systemUptime < deadline,
-           let target = findFocusedTextTarget(in: focusedWindow,
-                                              rootAssumeFocused: false,
-                                              windowToken: focusedWindowToken,
-                                              context: context,
-                                              deadline: deadline,
-                                              scannedCount: &scannedCount) {
-            return result(context: context,
-                          focusedWindowFrame: focusedWindowFrame,
-                          focusedWindowToken: focusedWindowToken,
-                          target: target,
-                          detail: "focused=\(focusedRole), window scan, scanned=\(scannedCount)",
-                          startedAt: startedAt)
-        }
-
-        let budgetExpired = ProcessInfo.processInfo.systemUptime >= deadline
-        return result(context: context,
-                      focusedWindowFrame: focusedWindowFrame,
-                      focusedWindowToken: focusedWindowToken,
-                      target: nil,
-                      detail: "focusedError=\(focusedResult.error.rawValue), focused=\(focusedRole), scanned=\(scannedCount), budgetExpired=\(budgetExpired)",
-                      startedAt: startedAt)
-    }
-
-    private static func result(context: InsertionTargetQueryContext,
-                               focusedWindowFrame: NSRect?,
-                               focusedWindowToken: UInt,
-                               target: FocusedInsertionTargetFrame?,
-                               detail: String,
-                               startedAt: TimeInterval) -> FocusedInsertionTargetQueryResult {
-        let elapsedMilliseconds = (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
-        return FocusedInsertionTargetQueryResult(
-            applicationPID: context.applicationPID,
-            applicationName: context.applicationName,
-            bundleIdentifier: context.bundleIdentifier,
-            focusedWindowFrame: focusedWindowFrame,
-            focusedWindowToken: focusedWindowToken,
-            target: target,
-            diagnostic: "\(detail), \(String(format: "%.1f", elapsedMilliseconds)) ms"
-        )
-    }
-
-    private static func findFocusedTextTarget(in root: AXUIElement,
-                                              rootAssumeFocused: Bool,
-                                              windowToken: UInt,
-                                              context: InsertionTargetQueryContext,
-                                              deadline: TimeInterval,
-                                              scannedCount: inout Int) -> FocusedInsertionTargetFrame? {
-        var queue = [SearchNode(element: root, depth: 0, assumeFocused: rootAssumeFocused)]
-        var queueIndex = 0
-        var visited: Set<UInt> = []
-
-        while queueIndex < queue.count,
-              scannedCount < maximumScannedElements,
-              ProcessInfo.processInfo.systemUptime < deadline {
-            let node = queue[queueIndex]
-            queueIndex += 1
-            let token = CFHash(node.element)
-            guard visited.insert(token).inserted else { continue }
-            scannedCount += 1
-            AXUIElementSetMessagingTimeout(node.element, messagingTimeout)
-
-            let reportsFocus = boolAttribute(node.element,
-                                             attribute: kAXFocusedAttribute as CFString) == true
-            if node.assumeFocused || reportsFocus,
-               let target = directTargetFrame(in: node.element,
-                                              assumeFocused: true,
-                                              allowUnfocusedTextElement: false,
-                                              resolutionPrefix: node.depth == 0 ? "focused" : "window scan",
-                                              windowToken: windowToken,
-                                              context: context) {
-                return target
-            }
-
-            guard node.depth < maximumScanDepth else { continue }
-            if let nestedFocused = elementAttribute(node.element,
-                                                    kAXFocusedUIElementAttribute as CFString),
-               !CFEqual(nestedFocused, node.element) {
-                queue.append(SearchNode(element: nestedFocused,
-                                        depth: node.depth + 1,
-                                        assumeFocused: true))
-            }
-            for selected in elementArrayAttribute(node.element,
-                                                  kAXSelectedChildrenAttribute as CFString) {
-                queue.append(SearchNode(element: selected,
-                                        depth: node.depth + 1,
-                                        assumeFocused: false))
-            }
-            for child in elementArrayAttribute(node.element, kAXChildrenAttribute as CFString) {
-                queue.append(SearchNode(element: child,
-                                        depth: node.depth + 1,
-                                        assumeFocused: false))
-            }
-        }
-        return nil
-    }
-
-    private static func targetAtLastClick(_ point: NSPoint,
-                                          app: AXUIElement,
-                                          windowToken: UInt,
-                                          context: InsertionTargetQueryContext) -> FocusedInsertionTargetFrame? {
-        let axPoint = NSPoint(x: point.x,
-                              y: context.coordinateReferenceMaxY - point.y)
-        var hit: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(app,
-                                              Float(axPoint.x),
-                                              Float(axPoint.y),
-                                              &hit) == .success,
-              var current = hit else {
-            return nil
-        }
-
-        for _ in 0..<8 {
-            AXUIElementSetMessagingTimeout(current, messagingTimeout)
-            if let target = directTargetFrame(in: current,
-                                              assumeFocused: false,
-                                              allowUnfocusedTextElement: true,
-                                              resolutionPrefix: "click",
-                                              windowToken: windowToken,
-                                              context: context) {
-                return target
-            }
-            guard let parent = elementAttribute(current, kAXParentAttribute as CFString),
-                  !CFEqual(parent, current) else {
-                break
-            }
-            current = parent
-        }
-        return nil
-    }
-
-    private static func directTargetFrame(in element: AXUIElement,
-                                          assumeFocused: Bool,
-                                          allowUnfocusedTextElement: Bool,
-                                          resolutionPrefix: String,
-                                          windowToken: UInt,
-                                          context: InsertionTargetQueryContext) -> FocusedInsertionTargetFrame? {
-        let reportsFocus = boolAttribute(element,
-                                         attribute: kAXFocusedAttribute as CFString) == true
-        let isTextInputElement = isTextInputElement(element)
-        guard assumeFocused || reportsFocus || (allowUnfocusedTextElement && isTextInputElement) else {
-            return nil
-        }
-
-        let identity = FocusedInsertionTargetIdentity(
-            applicationPID: context.applicationPID,
-            windowToken: windowToken,
-            elementToken: CFHash(element)
-        )
-        let elementFrame = elementFrame(element, context: context)
-        if isTextInputElement,
-           let caret = caretFrame(in: element, context: context) {
-            let visualFrame: NSRect
-            if let elementFrame,
-               isTextInputElement,
-               isReasonableTextInputFrame(elementFrame, near: caret.frame, context: context) {
-                visualFrame = visualTargetFrame(elementFrame: elementFrame,
-                                                caretFrame: caret.frame,
-                                                context: context)
-            } else {
-                visualFrame = caret.frame
-            }
-            return FocusedInsertionTargetFrame(
-                frame: caret.frame,
-                visualFrame: visualFrame,
-                resolutionKind: "\(resolutionPrefix) \(caret.resolutionKind)",
-                identity: identity
-            )
-        }
-
-        guard isTextInputElement,
-              let elementFrame,
-              isReasonableTextInputFrame(elementFrame, near: elementFrame, context: context) else {
-            return nil
-        }
-        return FocusedInsertionTargetFrame(
-            frame: elementFrame,
-            visualFrame: elementFrame,
-            resolutionKind: "\(resolutionPrefix) text element",
-            identity: identity
-        )
-    }
-
-    static func visualTargetFrame(elementFrame: NSRect,
-                                  caretFrame: NSRect,
-                                  context: InsertionTargetQueryContext) -> NSRect {
-        guard let visible = visibleFrame(containing: NSPoint(x: caretFrame.midX,
-                                                             y: caretFrame.midY),
-                                         context: context),
-              elementFrame.height > max(220, visible.height * 0.34) else {
-            return elementFrame
-        }
-
-        // A native document editor often exposes its entire page as one
-        // AXTextArea. Keep the block's left edge, but anchor vertically to
-        // the current line instead of placing the HUD above the whole page.
-        return NSRect(x: elementFrame.minX,
-                      y: caretFrame.minY,
-                      width: elementFrame.width,
-                      height: caretFrame.height)
-    }
-
-    private static func isTextInputElement(_ element: AXUIElement) -> Bool {
-        let role = stringAttribute(element, attribute: kAXRoleAttribute as CFString) ?? ""
-        let subrole = stringAttribute(element, attribute: kAXSubroleAttribute as CFString) ?? ""
-        if textElementRoles.contains(role) || textElementSubroles.contains(subrole) {
-            return true
-        }
-        if boolAttribute(element, attribute: editableAttributeName as CFString) == true {
-            return true
-        }
-        let hasSelectedRange = copyAttribute(element,
-                                             kAXSelectedTextRangeAttribute as CFString).error == .success
-        return hasSelectedRange
-            && (isAttributeSettable(element, kAXValueAttribute as CFString)
-                || isAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString))
-    }
-
-    private static func caretFrame(in element: AXUIElement,
-                                   context: InsertionTargetQueryContext) -> (frame: NSRect, resolutionKind: String)? {
-        let markerRange = copyAttribute(element, selectedTextMarkerRangeAttributeName as CFString)
-        if markerRange.error == .success,
-           let markerRangeValue = markerRange.value {
-            var boundsRaw: CFTypeRef?
-            if AXUIElementCopyParameterizedAttributeValue(element,
-                                                          boundsForTextMarkerRangeAttributeName as CFString,
-                                                          markerRangeValue,
-                                                          &boundsRaw) == .success,
-               let rect = cgRect(from: boundsRaw),
-               let caret = normalizedCaretRect(rect) {
-                return (appKitRect(fromAXRect: caret, context: context), "caret marker")
-            }
-        }
-
-        let rangeResult = copyAttribute(element, kAXSelectedTextRangeAttribute as CFString)
-        guard rangeResult.error == .success,
-              let rangeRaw = rangeResult.value,
-              CFGetTypeID(rangeRaw) == AXValueGetTypeID() else {
-            return nil
-        }
-        let rangeValue = unsafeDowncast(rangeRaw, to: AXValue.self)
-        guard AXValueGetType(rangeValue) == .cfRange else { return nil }
-
-        var range = CFRange()
-        guard AXValueGetValue(rangeValue, .cfRange, &range) else { return nil }
-        let candidates = [range, CFRange(location: range.location, length: max(range.length, 1))]
-        for candidate in candidates {
-            var candidateRange = candidate
-            guard let candidateValue = AXValueCreate(.cfRange, &candidateRange) else { continue }
-            var boundsRaw: CFTypeRef?
-            guard AXUIElementCopyParameterizedAttributeValue(
-                element,
-                kAXBoundsForRangeParameterizedAttribute as CFString,
-                candidateValue,
-                &boundsRaw
-            ) == .success,
-            let rect = cgRect(from: boundsRaw),
-            let caret = normalizedCaretRect(rect) else {
-                continue
-            }
-            return (appKitRect(fromAXRect: caret, context: context), "caret range")
-        }
-        return nil
-    }
-
-    private static func normalizedCaretRect(_ rect: CGRect) -> CGRect? {
-        guard rect.minX.isFinite,
-              rect.minY.isFinite,
-              rect.width.isFinite,
-              rect.height.isFinite,
-              rect.width >= 0,
-              rect.height > 0,
-              rect.height <= 120,
-              rect.width <= max(12, rect.height * 1.5) else {
-            return nil
-        }
-        return rect.width > 0
-            ? rect
-            : CGRect(x: rect.origin.x, y: rect.origin.y, width: 2, height: rect.height)
-    }
-
-    private static func elementFrame(_ element: AXUIElement,
-                                     context: InsertionTargetQueryContext) -> NSRect? {
-        let directFrame = copyAttribute(element, frameAttributeName as CFString)
-        if directFrame.error == .success,
-           let rect = cgRect(from: directFrame.value),
-           rect.width > 0,
-           rect.height > 0 {
-            return appKitRect(fromAXRect: rect, context: context)
-        }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        guard axPoint(element, attribute: kAXPositionAttribute as CFString, value: &position),
-              axSize(element, attribute: kAXSizeAttribute as CFString, value: &size),
-              size.width.isFinite,
-              size.height.isFinite,
-              size.width > 0,
-              size.height > 0 else {
-            return nil
-        }
-        return appKitRect(fromAXRect: CGRect(origin: position, size: size), context: context)
-    }
-
-    private static func isReasonableTextInputFrame(_ frame: NSRect,
-                                                   near anchor: NSRect,
-                                                   context: InsertionTargetQueryContext) -> Bool {
-        guard frame.minX.isFinite,
-              frame.minY.isFinite,
-              frame.width.isFinite,
-              frame.height.isFinite,
-              frame.width > 0,
-              frame.height > 0 else {
-            return false
-        }
-        guard frame.insetBy(dx: -8, dy: -8).contains(NSPoint(x: anchor.midX, y: anchor.midY)) else {
-            return false
-        }
-        guard let visible = visibleFrame(containing: NSPoint(x: anchor.midX, y: anchor.midY),
-                                         context: context) else {
-            return false
-        }
-        if frame.width > visible.width * 0.92,
-           frame.height > visible.height * 0.55 {
-            return false
-        }
-        return frame.height <= visible.height * 0.82
-    }
-
-    private static func visibleFrame(containing point: NSPoint,
-                                     context: InsertionTargetQueryContext) -> NSRect? {
-        if let screen = context.screens.first(where: { $0.frame.contains(point) }) {
-            return screen.visibleFrame
-        }
-        return context.screens.first?.visibleFrame
-    }
-
-    private static func windowElement(for element: AXUIElement) -> AXUIElement? {
-        elementAttribute(element, kAXWindowAttribute as CFString)
-            ?? elementAttribute(element, kAXTopLevelUIElementAttribute as CFString)
-    }
-
-    private static func copyAttribute(_ element: AXUIElement,
-                                      _ attribute: CFString) -> (error: AXError, value: CFTypeRef?) {
-        var raw: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(element, attribute, &raw)
-        return (error, raw)
-    }
-
-    private static func axElement(from raw: CFTypeRef?) -> AXUIElement? {
-        guard let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-        return unsafeDowncast(raw, to: AXUIElement.self)
-    }
-
-    private static func elementAttribute(_ element: AXUIElement,
-                                         _ attribute: CFString) -> AXUIElement? {
-        axElement(from: copyAttribute(element, attribute).value)
-    }
-
-    private static func elementArrayAttribute(_ element: AXUIElement,
-                                              _ attribute: CFString) -> [AXUIElement] {
-        let result = copyAttribute(element, attribute)
-        guard result.error == .success, let raw = result.value else { return [] }
-        if let single = axElement(from: raw) { return [single] }
-        return raw as? [AXUIElement] ?? []
-    }
-
-    private static func stringAttribute(_ element: AXUIElement,
-                                        attribute: CFString) -> String? {
-        let result = copyAttribute(element, attribute)
-        guard result.error == .success else { return nil }
-        return result.value as? String
-    }
-
-    private static func boolAttribute(_ element: AXUIElement,
-                                      attribute: CFString) -> Bool? {
-        let result = copyAttribute(element, attribute)
-        guard result.error == .success else { return nil }
-        return result.value as? Bool
-    }
-
-    private static func isAttributeSettable(_ element: AXUIElement,
-                                            _ attribute: CFString) -> Bool {
-        var settable = DarwinBoolean(false)
-        return AXUIElementIsAttributeSettable(element, attribute, &settable) == .success
-            && settable.boolValue
-    }
-
-    private static func cgRect(from raw: CFTypeRef?) -> CGRect? {
-        guard let raw,
-              CFGetTypeID(raw) == AXValueGetTypeID() else {
-            return nil
-        }
-        let value = unsafeDowncast(raw, to: AXValue.self)
-        guard AXValueGetType(value) == .cgRect else { return nil }
-        var rect = CGRect.zero
-        return AXValueGetValue(value, .cgRect, &rect) ? rect : nil
-    }
-
-    private static func axPoint(_ element: AXUIElement,
-                                attribute: CFString,
-                                value: inout CGPoint) -> Bool {
-        let result = copyAttribute(element, attribute)
-        guard result.error == .success,
-              let raw = result.value,
-              CFGetTypeID(raw) == AXValueGetTypeID() else {
-            return false
-        }
-        let axValue = unsafeDowncast(raw, to: AXValue.self)
-        return AXValueGetType(axValue) == .cgPoint
-            && AXValueGetValue(axValue, .cgPoint, &value)
-    }
-
-    private static func axSize(_ element: AXUIElement,
-                               attribute: CFString,
-                               value: inout CGSize) -> Bool {
-        let result = copyAttribute(element, attribute)
-        guard result.error == .success,
-              let raw = result.value,
-              CFGetTypeID(raw) == AXValueGetTypeID() else {
-            return false
-        }
-        let axValue = unsafeDowncast(raw, to: AXValue.self)
-        return AXValueGetType(axValue) == .cgSize
-            && AXValueGetValue(axValue, .cgSize, &value)
-    }
-
-    private static func appKitRect(fromAXRect rect: CGRect,
-                                   context: InsertionTargetQueryContext) -> NSRect {
-        NSRect(x: rect.origin.x,
-               y: context.coordinateReferenceMaxY - rect.origin.y - rect.height,
-               width: rect.width,
-               height: rect.height)
-    }
-}
-
-func textInsertionStrategyChain(primary: TextInsertionStrategy) -> [TextInsertionStrategy] {
-    switch primary {
-    case .clipboardPaste:
-        return [.clipboardPaste, .directUnicode]
-    case .directUnicode:
-        return [.directUnicode]
-    }
-}
-
-func textInsertionStrategyDescription(primary: TextInsertionStrategy) -> String {
-    let strategies = textInsertionStrategyChain(primary: primary).map(\.displayName)
-    guard let first = strategies.first else { return "Unavailable" }
-    guard strategies.count > 1 else { return first }
-    return "\(first) with \(strategies.dropFirst().joined(separator: ", ")) fallback"
-}
-
-func unicodeInsertionChunks(for text: String, maxUTF16UnitsPerEvent maxUnits: Int) -> [[UInt16]] {
-    guard maxUnits > 0 else { return [] }
-    var chunks: [[UInt16]] = []
-    var current: [UInt16] = []
-
-    for character in text {
-        let units = Array(String(character).utf16)
-        if units.count > maxUnits {
-            if !current.isEmpty {
-                chunks.append(current)
-                current.removeAll(keepingCapacity: true)
-            }
-            chunks.append(units)
-            continue
-        }
-        if !current.isEmpty, current.count + units.count > maxUnits {
-            chunks.append(current)
-            current.removeAll(keepingCapacity: true)
-        }
-        current.append(contentsOf: units)
-    }
-
-    if !current.isEmpty {
-        chunks.append(current)
-    }
-    return chunks
-}
-
-private struct KeyboardEventStep: Equatable {
-    let virtualKey: CGKeyCode
-    let keyDown: Bool
-    let flags: CGEventFlags
-}
-
-private func clipboardPasteKeyboardEventSteps(commandKey: CGKeyCode,
-                                              pasteKey: CGKeyCode) -> [KeyboardEventStep] {
-    [
-        KeyboardEventStep(virtualKey: commandKey, keyDown: true, flags: .maskCommand),
-        KeyboardEventStep(virtualKey: pasteKey, keyDown: true, flags: .maskCommand),
-        KeyboardEventStep(virtualKey: pasteKey, keyDown: false, flags: .maskCommand),
-        KeyboardEventStep(virtualKey: commandKey, keyDown: false, flags: []),
-    ]
-}
-
-private func postKeyboardEventSteps(_ steps: [KeyboardEventStep]) -> Bool {
-    let source = CGEventSource(stateID: .hidSystemState)
-    let events = steps.compactMap { step -> CGEvent? in
-        guard let event = CGEvent(keyboardEventSource: source,
-                                  virtualKey: step.virtualKey,
-                                  keyDown: step.keyDown) else {
-            return nil
-        }
-        event.flags = step.flags
-        return event
-    }
-    guard events.count == steps.count else { return false }
-
-    for event in events {
-        event.post(tap: .cghidEventTap)
-    }
-    return true
-}
-
-@MainActor
-private enum KeyboardShortcutPoster {
-    @discardableResult
-    static func postReturn() -> Bool {
-        postKeyboardEventSteps([
-            KeyboardEventStep(virtualKey: RETURN_KEYCODE, keyDown: true, flags: []),
-            KeyboardEventStep(virtualKey: RETURN_KEYCODE, keyDown: false, flags: []),
-        ])
-    }
-}
-
-@MainActor
-enum TextInserter {
-    nonisolated static let defaultStrategy = TextInsertionStrategy.directUnicode
-
-    nonisolated static var defaultStrategyDescription: String {
-        textInsertionStrategyDescription(primary: defaultStrategy)
-    }
-
-    @discardableResult
-    static func insert(_ text: String, strategy: TextInsertionStrategy = defaultStrategy) -> Bool {
-        for candidate in textInsertionStrategyChain(primary: strategy) {
-            if insert(text, using: candidate) {
-                if candidate != strategy {
-                    log("text insertion fallback succeeded: \(candidate.displayName)")
-                }
-                return true
-            }
-            log("text insertion attempt failed: \(candidate.displayName)")
-        }
-        return false
-    }
-
-    private static func insert(_ text: String, using strategy: TextInsertionStrategy) -> Bool {
-        switch strategy {
-        case .clipboardPaste:
-            return ClipboardPasteInserter.insert(text)
-        case .directUnicode:
-            return DirectUnicodeInserter.insert(text)
-        }
-    }
-}
-
-@MainActor
-private final class FocusedTextChangeObserver {
-    private static let messagingTimeout: Float = 0.3
-    private let applicationPID: pid_t
-    private let initialValue: String
-
-    private init(applicationPID: pid_t, initialValue: String) {
-        self.applicationPID = applicationPID
-        self.initialValue = initialValue
-    }
-
-    static func capture() -> FocusedTextChangeObserver? {
-        guard AXIsProcessTrusted(),
-              let application = NSWorkspace.shared.frontmostApplication else {
-            return nil
-        }
-        guard let value = focusedTextValue(applicationPID: application.processIdentifier) else {
-            return nil
-        }
-        return FocusedTextChangeObserver(
-            applicationPID: application.processIdentifier,
-            initialValue: value
-        )
-    }
-
-    func waitForChange(timeout: TimeInterval) async -> Bool {
-        let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
-        while ProcessInfo.processInfo.systemUptime < deadline {
-            if let currentValue = Self.focusedTextValue(applicationPID: applicationPID),
-               currentValue != initialValue {
-                log("text field content changed after insertion")
-                return true
-            }
-            do {
-                try await Task.sleep(nanoseconds: 10_000_000)
-            } catch {
-                break
-            }
-        }
-        log("text field content did not change after insertion")
-        return false
-    }
-
-    private static func focusedTextValue(applicationPID: pid_t) -> String? {
-        let appElement = AXUIElementCreateApplication(applicationPID)
-        AXUIElementSetMessagingTimeout(appElement, messagingTimeout)
-        var raw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            appElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &raw
-        ) == .success,
-        let raw,
-        CFGetTypeID(raw) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        let focused = unsafeDowncast(raw, to: AXUIElement.self)
-        AXUIElementSetMessagingTimeout(focused, messagingTimeout)
-        var valueRaw: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            focused,
-            kAXValueAttribute as CFString,
-            &valueRaw
-        ) == .success else {
-            return nil
-        }
-        return valueRaw as? String
-    }
-}
-
-@MainActor
-private enum ClipboardPasteInserter {
-    private static let virtualKeyCommand: CGKeyCode = 0x37  // left Command
-    private static let virtualKeyV: CGKeyCode = 0x09  // ANSI 'v'
-    private static let restoreDelayAfterRead: TimeInterval = 2
-    private static let restoreTimeout: TimeInterval = 10
-    private static let targetRequestTimeout: TimeInterval = 2
-    private static var pendingTransaction: ClipboardPasteTransaction?
-
-    static func write(_ text: String, to pb: NSPasteboard) -> Bool {
-        pb.clearContents()
-        return pb.setString(text, forType: .string)
-    }
-
-    static func insert(_ text: String) -> Bool {
-        let pasteboard = NSPasteboard.general
-        pendingTransaction?.restoreNowIfCurrent(reason: "superseded by another dictation")
-        let previous = PasteboardSnapshot.capture(from: pasteboard)
-        let transaction = ClipboardPasteTransaction(
-            text: text,
-            pasteboard: pasteboard,
-            previousSnapshot: previous,
-            restoreDelay: restoreDelayAfterRead,
-            restoreTimeout: restoreTimeout
-        )
-        transaction.onFinished = { [weak transaction] in
-            guard let transaction, pendingTransaction === transaction else { return }
-            pendingTransaction = nil
-        }
-        pendingTransaction = transaction
-        guard transaction.install() else {
-            pendingTransaction = nil
-            log("pasteboard write failed")
-            return false
-        }
-
-        let steps = clipboardPasteKeyboardEventSteps(commandKey: virtualKeyCommand,
-                                                     pasteKey: virtualKeyV)
-        guard post(steps) else {
-            log("paste event creation failed")
-            transaction.restoreNowIfCurrent(reason: "paste event creation failed")
-            return false
-        }
-        return true
-    }
-
-    static func waitForPendingTargetRequest() async -> Bool? {
-        guard let transaction = pendingTransaction else { return nil }
-        return await transaction.waitForTextRequest(timeout: targetRequestTimeout)
-    }
-
-    private static func post(_ steps: [KeyboardEventStep]) -> Bool {
-        // Post Command as real key events instead of only tagging the V
-        // events with .maskCommand. Sleep/wake can leave session modifier
-        // state unreliable for flag-only synthetic shortcuts.
-        return postKeyboardEventSteps(steps)
-    }
-}
-
-@MainActor
-private struct PasteboardSnapshot {
-    private struct Item {
-        let values: [(type: NSPasteboard.PasteboardType, data: Data)]
-    }
-
-    private let items: [Item]
-
-    static func capture(from pasteboard: NSPasteboard) -> PasteboardSnapshot {
-        let items = (pasteboard.pasteboardItems ?? []).map { item in
-            Item(values: item.types.compactMap { type in
-                guard let data = item.data(forType: type) else { return nil }
-                return (type, data)
-            })
-        }
-        return PasteboardSnapshot(items: items)
-    }
-
-    func restore(to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
-        let restoredItems = items.map { item -> NSPasteboardItem in
-            let restored = NSPasteboardItem()
-            for value in item.values {
-                restored.setData(value.data, forType: value.type)
-            }
-            return restored
-        }
-        if !restoredItems.isEmpty {
-            pasteboard.writeObjects(restoredItems)
-        }
-    }
-}
-
-@MainActor
-private final class ClipboardPasteTransaction: NSObject, NSPasteboardItemDataProvider {
-    nonisolated let text: String
-    let pasteboard: NSPasteboard
-    let previousSnapshot: PasteboardSnapshot
-    let restoreDelay: TimeInterval
-    let restoreTimeout: TimeInterval
-    var onFinished: (() -> Void)?
-
-    private let startedAt = ProcessInfo.processInfo.systemUptime
-    private var transientChangeCount: Int?
-    private var restoreWorkItem: DispatchWorkItem?
-    private var didProvideText = false
-    private var isFinished = false
-
-    var textWasRequested: Bool { didProvideText }
-
-    init(text: String,
-         pasteboard: NSPasteboard,
-         previousSnapshot: PasteboardSnapshot,
-         restoreDelay: TimeInterval,
-         restoreTimeout: TimeInterval,
-         onFinished: (() -> Void)? = nil) {
-        self.text = text
-        self.pasteboard = pasteboard
-        self.previousSnapshot = previousSnapshot
-        self.restoreDelay = restoreDelay
-        self.restoreTimeout = restoreTimeout
-        self.onFinished = onFinished
-    }
-
-    func install() -> Bool {
-        let item = NSPasteboardItem()
-        guard item.setDataProvider(self, forTypes: [.string]) else {
-            finish()
-            return false
-        }
-        pasteboard.clearContents()
-        guard pasteboard.writeObjects([item]) else {
-            previousSnapshot.restore(to: pasteboard)
-            finish()
-            return false
-        }
-        transientChangeCount = pasteboard.changeCount
-        scheduleRestore(after: restoreTimeout, reason: "target did not request dictation text")
-        return true
-    }
-
-    nonisolated func pasteboard(_ pasteboard: NSPasteboard?,
-                               item: NSPasteboardItem,
-                               provideDataForType type: NSPasteboard.PasteboardType) {
-        guard type == .string else { return }
-        item.setString(text, forType: type)
-        Task { @MainActor [weak self] in
-            self?.textWasProvided()
-        }
-    }
-
-    private func textWasProvided() {
-        guard !isFinished, !didProvideText else { return }
-        didProvideText = true
-        let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
-        log("pasteboard target requested dictation text after \(millisecondsLabel(elapsed))")
-        scheduleRestore(after: restoreDelay, reason: "target consumed dictation text")
-    }
-
-    func waitForTextRequest(timeout: TimeInterval) async -> Bool {
-        let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
-        while !didProvideText,
-              !isFinished,
-              ProcessInfo.processInfo.systemUptime < deadline {
-            do {
-                try await Task.sleep(nanoseconds: 10_000_000)
-            } catch {
-                break
-            }
-        }
-        return didProvideText
-    }
-
-    func restoreNowIfCurrent(reason: String) {
-        restore(reason: reason)
-    }
-
-    private func scheduleRestore(after delay: TimeInterval, reason: String) {
-        restoreWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            self?.restore(reason: reason)
-        }
-        restoreWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, delay), execute: work)
-    }
-
-    private func restore(reason: String) {
-        guard !isFinished else { return }
-        restoreWorkItem?.cancel()
-        restoreWorkItem = nil
-        if let transientChangeCount,
-           pasteboard.changeCount == transientChangeCount {
-            previousSnapshot.restore(to: pasteboard)
-            log("pasteboard restored after \(reason)")
-        } else {
-            log("pasteboard restore skipped after \(reason): clipboard changed externally")
-        }
-        finish()
-    }
-
-    private func finish() {
-        guard !isFinished else { return }
-        isFinished = true
-        restoreWorkItem?.cancel()
-        restoreWorkItem = nil
-        let completion = onFinished
-        onFinished = nil
-        completion?()
-    }
-}
-
-@MainActor
-private enum DirectUnicodeInserter {
-    private static let maxUTF16UnitsPerEvent = 20
-
-    static func insert(_ text: String) -> Bool {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        var didPostAll = true
-
-        for chunk in unicodeInsertionChunks(for: text, maxUTF16UnitsPerEvent: maxUTF16UnitsPerEvent) {
-            didPostAll = post(chunk, source: source) && didPostAll
-        }
-        return didPostAll
-    }
-
-    private static func post(_ units: [UInt16], source: CGEventSource?) -> Bool {
-        // Each chunk posts a keyDown AND a matching keyUp carrying the
-        // same unicode payload — standard CGEvent unicode-typing
-        // practice. A keyDown-only stream leaves apps that track key
-        // state believing a key is still held.
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
-            return false
-        }
-        down.flags = []
-        up.flags = []
-        for event in [down, up] {
-            units.withUnsafeBufferPointer { buffer in
-                guard let base = buffer.baseAddress else { return }
-                event.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: base)
-            }
-        }
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
-        return true
-    }
 }
 
 // MARK: - System audio mute
@@ -8083,20 +6832,20 @@ func systemAudioUnmuteRequestDecision(phase: SystemAudioMutePhase) -> SystemAudi
     }
 }
 
-private func systemAudioMuteMarkerURL() -> URL {
+func systemAudioMuteMarkerURL() -> URL {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent(APP_SUPPORT_DIR_NAME, isDirectory: true)
         .appendingPathComponent("system-audio-muted", isDirectory: false)
 }
 
-private func systemAudioMuteMarkerText(pid: pid_t = getpid(), date: Date = Date()) -> String {
+func systemAudioMuteMarkerText(pid: pid_t = getpid(), date: Date = Date()) -> String {
     """
     pid=\(pid)
     created=\(ISO8601DateFormatter().string(from: date))
     """
 }
 
-private func systemAudioMuteMarkerProcessID(from text: String) -> pid_t? {
+func systemAudioMuteMarkerProcessID(from text: String) -> pid_t? {
     for line in text.split(separator: "\n") {
         guard line.hasPrefix("pid="),
               let raw = Int32(line.dropFirst(4)),
@@ -8106,7 +6855,7 @@ private func systemAudioMuteMarkerProcessID(from text: String) -> pid_t? {
     return nil
 }
 
-private func writeSystemAudioMuteMarker(to url: URL = systemAudioMuteMarkerURL(),
+func writeSystemAudioMuteMarker(to url: URL = systemAudioMuteMarkerURL(),
                                         text: String = systemAudioMuteMarkerText()) throws {
     let fm = FileManager.default
     let directory = url.deletingLastPathComponent()
@@ -8130,11 +6879,11 @@ private func writeSystemAudioMuteMarker(to url: URL = systemAudioMuteMarkerURL()
     _ = Darwin.fchmod(fd, 0o600)
 }
 
-private func removeSystemAudioMuteMarker(at url: URL = systemAudioMuteMarkerURL()) {
+func removeSystemAudioMuteMarker(at url: URL = systemAudioMuteMarkerURL()) {
     try? FileManager.default.removeItem(at: url)
 }
 
-private func systemAudioMuteWatchdogScript() -> String {
+func systemAudioMuteWatchdogScript() -> String {
     #"""
     PID="$1"
     MARKER="$2"
@@ -8239,7 +6988,7 @@ struct DiagnosticsReportSnapshot {
     let recentLogLines: [String]
 }
 
-private func diagnosticBulletLines(_ lines: [String], emptyText: String) -> String {
+func diagnosticBulletLines(_ lines: [String], emptyText: String) -> String {
     guard !lines.isEmpty else { return "- \(emptyText)" }
     return lines.map { "- \($0)" }.joined(separator: "\n")
 }
@@ -8337,7 +7086,7 @@ func recentDiagnosticLogLines(from url: URL = Logger.shared.fileURL,
     return Array(sanitized.suffix(maxLines))
 }
 
-private func sanitizedDiagnosticLogLine(_ line: String) -> String {
+func sanitizedDiagnosticLogLine(_ line: String) -> String {
     var result = String()
     result.reserveCapacity(min(line.count, DIAGNOSTICS_LOG_MAX_LINE_CHARACTERS))
     for scalar in line.unicodeScalars {
@@ -8384,861 +7133,6 @@ func isNewer(_ candidate: String, than current: String) -> Bool {
     return false
 }
 
-// MARK: - Update check
-//
-// Hits the GitHub Releases API once at boot + every 6 h. Users can
-// also force the same lookup from the menu. When a newer version is
-// found AND it's not in the user's skipped list, a submenu inserts
-// itself at the top of the menu: What's new / Update now / Remind me
-// in 24 hours / Skip vX.Y.Z.
-
-struct GitHubRelease: Sendable, Equatable {
-    let tagName: String      // 'v0.1.7'
-    let version: String      // '0.1.7' (no v)
-    let body: String         // release notes, raw markdown
-    let htmlURL: String
-}
-
-private struct GitHubReleaseResponse: Decodable {
-    let tagName: String
-    let body: String?
-    let htmlURL: String?
-
-    enum CodingKeys: String, CodingKey {
-        case tagName = "tag_name"
-        case body
-        case htmlURL = "html_url"
-    }
-}
-
-/// Why an update check failed. Carried as a value (not a string) so
-/// the manual-check alert can explain the actual problem instead of
-/// blaming the network for everything; automatic ticks ignore it and
-/// stay silent.
-enum UpdateCheckFailure: Error, Equatable, Sendable {
-    /// The HTTPS request itself failed (offline, DNS, timeout).
-    case network
-    /// GitHub answered with a non-2xx status (403 → likely API rate
-    /// limiting).
-    case httpStatus(Int)
-    /// A response arrived but was oversized, malformed, or carried an
-    /// unusable tag.
-    case unexpectedResponse
-}
-
-/// User-facing explanation for a failed *manual* update check. Only
-/// the alert behind "Check for Updates…" uses this — automatic and
-/// settings-toggle checks never alert.
-func manualUpdateCheckFailureText(_ failure: UpdateCheckFailure) -> String {
-    switch failure {
-    case .network:
-        return "VoiceSwap couldn't reach GitHub. Check your internet connection and try again."
-    case .httpStatus(403):
-        return "GitHub declined the update check (HTTP 403). This is usually temporary rate limiting — try again in a few minutes."
-    case .httpStatus(let code):
-        return "GitHub returned an error (HTTP \(code)). Try again later."
-    case .unexpectedResponse:
-        return "GitHub returned a response VoiceSwap couldn't read. Try again later, or check the releases page on GitHub directly."
-    }
-}
-
-enum UpdateCheck {
-    private static let githubReleaseURLPathPrefix = "/Vasya2004/VoiceSwap/releases/tag/"
-    static let maxReleaseResponseBytes = 512 * 1024
-
-    static func fetchLatest() async -> Result<GitHubRelease, UpdateCheckFailure> {
-        var req = URLRequest(url: GITHUB_LATEST_RELEASE_URL)
-        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        // The privacy docs promise exactly this fixed token — no
-        // version, device, or user identifiers. Must stay in sync with
-        // docs/privacy/network-calls.json.
-        req.setValue("superdictate-update-check", forHTTPHeaderField: "User-Agent")
-        req.timeoutInterval = 10
-        let config = URLSessionConfiguration.ephemeral
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = nil
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 10
-        let session = URLSession(configuration: config)
-        defer { session.finishTasksAndInvalidate() }
-
-        do {
-            let (data, response) = try await session.data(for: req)
-            return parseLatest(data: data, response: response)
-        } catch {
-            return .failure(.network)
-        }
-    }
-
-    static func parseLatest(data: Data, response: URLResponse) -> Result<GitHubRelease, UpdateCheckFailure> {
-        guard let http = response as? HTTPURLResponse else {
-            return .failure(.unexpectedResponse)
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            return .failure(.httpStatus(http.statusCode))
-        }
-        guard data.count <= maxReleaseResponseBytes,
-              let payload = try? JSONDecoder().decode(GitHubReleaseResponse.self, from: data) else {
-            return .failure(.unexpectedResponse)
-        }
-
-        let tag = payload.tagName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let version = normalizedReleaseVersion(from: tag) else {
-            return .failure(.unexpectedResponse)
-        }
-
-        return .success(GitHubRelease(
-            tagName: tag,
-            version: version,
-            body: payload.body ?? "",
-            htmlURL: sanitizedReleaseURL(payload.htmlURL, expectedTag: tag)
-        ))
-    }
-
-    static func normalizedReleaseVersion(from tag: String) -> String? {
-        var version = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let first = version.first, first == "v" || first == "V" {
-            version.removeFirst()
-        }
-
-        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 3 else { return nil }
-        for part in parts {
-            guard !part.isEmpty,
-                  part.allSatisfy({ ("0"..."9").contains($0) }),
-                  part == "0" || !part.hasPrefix("0"),
-                  Int(part) != nil else {
-                return nil
-            }
-        }
-        return parts.joined(separator: ".")
-    }
-
-    static func sanitizedReleaseURL(_ value: String?, expectedTag: String) -> String {
-        guard let value else { return GITHUB_RELEASES_PAGE.absoluteString }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let components = URLComponents(string: trimmed),
-              components.scheme == "https",
-              components.host == "github.com",
-              components.user == nil,
-              components.password == nil,
-              components.query == nil,
-              components.fragment == nil,
-              components.path == "\(githubReleaseURLPathPrefix)\(expectedTag)" else {
-            return GITHUB_RELEASES_PAGE.absoluteString
-        }
-        return trimmed
-    }
-}
-
-struct SuperDictateUpdateManifest: Decodable, Equatable, Sendable {
-    let version: String
-    let sha256: String
-}
-
-struct PreparedSuperDictateUpdate: Sendable {
-    let version: String
-    let workDirectory: URL
-    let stagedAppURL: URL
-}
-
-enum SuperDictateUpdateInstallerError: LocalizedError, Equatable, Sendable {
-    case network
-    case httpStatus(Int)
-    case invalidManifest
-    case manifestVersionMismatch(expected: String, actual: String)
-    case archiveTooLarge
-    case checksumMismatch
-    case extractionFailed(String)
-    case invalidBundle(String)
-    case appNotWritable
-
-    var errorDescription: String? { message(language: .russian) }
-
-    func message(language: InterfaceLanguage) -> String {
-        if language == .english {
-            switch self {
-            case .network:
-                return "The update could not be downloaded. Check your internet connection."
-            case .httpStatus(let code):
-                return "The update server returned HTTP \(code)."
-            case .invalidManifest:
-                return "The update manifest is damaged or has an unknown format."
-            case .manifestVersionMismatch(let expected, let actual):
-                return "GitHub reports version \(expected), but the manifest reports \(actual). The update was stopped."
-            case .archiveTooLarge:
-                return "The update archive exceeds the allowed size."
-            case .checksumMismatch:
-                return "The archive checksum did not match. The application was not replaced."
-            case .extractionFailed(let detail):
-                return "The update could not be extracted: \(detail)"
-            case .invalidBundle(let detail):
-                return "The new application failed verification: \(detail)"
-            case .appNotWritable:
-                return "VoiceSwap cannot replace the application in Applications. Run the regular installer once."
-            }
-        }
-        switch self {
-        case .network:
-            return "Не удалось скачать обновление. Проверьте подключение к интернету."
-        case .httpStatus(let code):
-            return "Сервер обновлений вернул ошибку HTTP \(code)."
-        case .invalidManifest:
-            return "Манифест обновления повреждён или имеет неизвестный формат."
-        case .manifestVersionMismatch(let expected, let actual):
-            return "GitHub сообщает о версии \(expected), а манифест — о версии \(actual). Обновление остановлено."
-        case .archiveTooLarge:
-            return "Архив обновления превышает допустимый размер."
-        case .checksumMismatch:
-            return "Контрольная сумма архива не совпала. Приложение не будет заменено."
-        case .extractionFailed(let detail):
-            return "Не удалось распаковать обновление: \(detail)"
-        case .invalidBundle(let detail):
-            return "Проверка нового приложения не пройдена: \(detail)"
-        case .appNotWritable:
-            return "VoiceSwap не может заменить приложение в папке Applications. Запустите обычный установщик один раз."
-        }
-    }
-}
-
-enum SuperDictateUpdateInstaller {
-    private static let manifestMaxBytes = 16 * 1024
-
-    static func fetchManifest(expectedVersion: String) async throws -> SuperDictateUpdateManifest {
-        var request = URLRequest(url: GITHUB_UPDATE_MANIFEST_URL)
-        request.setValue("voiceswap-in-app-update", forHTTPHeaderField: "User-Agent")
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        request.timeoutInterval = 15
-        let (data, response) = try await fetch(request: request, maxBytes: manifestMaxBytes)
-        guard (200..<300).contains(response.statusCode) else {
-            throw SuperDictateUpdateInstallerError.httpStatus(response.statusCode)
-        }
-        return try parseManifest(data, expectedVersion: expectedVersion)
-    }
-
-    static func parseManifest(_ data: Data,
-                              expectedVersion: String) throws -> SuperDictateUpdateManifest {
-        guard let manifest = try? JSONDecoder().decode(SuperDictateUpdateManifest.self, from: data),
-              UpdateCheck.normalizedReleaseVersion(from: manifest.version) == manifest.version,
-              manifest.sha256.count == 64,
-              manifest.sha256.allSatisfy({ $0.isHexDigit }) else {
-            throw SuperDictateUpdateInstallerError.invalidManifest
-        }
-        guard manifest.version == expectedVersion else {
-            throw SuperDictateUpdateInstallerError.manifestVersionMismatch(
-                expected: expectedVersion,
-                actual: manifest.version
-            )
-        }
-        return manifest
-    }
-
-    static func prepare(manifest: SuperDictateUpdateManifest) async throws -> PreparedSuperDictateUpdate {
-        guard appCanBeReplaced(at: Bundle.main.bundleURL) else {
-            throw SuperDictateUpdateInstallerError.appNotWritable
-        }
-
-        let archiveURL = URL(string: "https://github.com/Vasya2004/VoiceSwap/releases/download/v\(manifest.version)/VoiceSwap.zip")!
-        var request = URLRequest(url: archiveURL)
-        request.setValue("voiceswap-in-app-update", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 60
-        let (archiveData, response) = try await fetch(request: request,
-                                                      maxBytes: UPDATE_ARCHIVE_MAX_BYTES)
-        guard (200..<300).contains(response.statusCode) else {
-            throw SuperDictateUpdateInstallerError.httpStatus(response.statusCode)
-        }
-
-        var hasher = SHA256()
-        hasher.update(data: archiveData)
-        let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        guard digest.caseInsensitiveCompare(manifest.sha256) == .orderedSame else {
-            throw SuperDictateUpdateInstallerError.checksumMismatch
-        }
-
-        let workDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("VoiceSwap-update-\(UUID().uuidString)", isDirectory: true)
-        let archiveFile = workDirectory.appendingPathComponent("VoiceSwap.zip")
-        let extractedDirectory = workDirectory.appendingPathComponent("release", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: extractedDirectory,
-                                                    withIntermediateDirectories: true,
-                                                    attributes: [.posixPermissions: 0o700])
-            try archiveData.write(to: archiveFile, options: [.atomic])
-        } catch {
-            try? FileManager.default.removeItem(at: workDirectory)
-            throw SuperDictateUpdateInstallerError.extractionFailed(error.localizedDescription)
-        }
-
-        let extraction = await Task.detached(priority: .userInitiated) {
-            SuperDictateAgentService.run("/usr/bin/ditto",
-                                         ["-x", "-k", archiveFile.path, extractedDirectory.path])
-        }.value
-        guard extraction.status == 0 else {
-            try? FileManager.default.removeItem(at: workDirectory)
-            throw SuperDictateUpdateInstallerError.extractionFailed(extraction.output)
-        }
-
-        let stagedAppURL = extractedDirectory.appendingPathComponent("VoiceSwap.app",
-                                                                      isDirectory: true)
-        do {
-            try validateApp(at: stagedAppURL, expectedVersion: manifest.version)
-        } catch let error as SuperDictateUpdateInstallerError {
-            try? FileManager.default.removeItem(at: workDirectory)
-            throw error
-        } catch {
-            try? FileManager.default.removeItem(at: workDirectory)
-            throw SuperDictateUpdateInstallerError.invalidBundle(error.localizedDescription)
-        }
-        return PreparedSuperDictateUpdate(version: manifest.version,
-                                          workDirectory: workDirectory,
-                                          stagedAppURL: stagedAppURL)
-    }
-
-    static func appCanBeReplaced(at appURL: URL) -> Bool {
-        let fileManager = FileManager.default
-        guard appURL.pathExtension == "app",
-              fileManager.fileExists(atPath: appURL.path) else { return false }
-        return fileManager.isWritableFile(atPath: appURL.path)
-            && fileManager.isWritableFile(atPath: appURL.deletingLastPathComponent().path)
-    }
-
-    static func validateApp(at appURL: URL, expectedVersion: String) throws {
-        let fileManager = FileManager.default
-        let infoURL = appURL.appendingPathComponent("Contents/Info.plist")
-        let executableURL = appURL.appendingPathComponent("Contents/MacOS/SuperDictate")
-        guard appURL.lastPathComponent == "VoiceSwap.app",
-              fileManager.fileExists(atPath: infoURL.path),
-              fileManager.isExecutableFile(atPath: executableURL.path),
-              let infoData = try? Data(contentsOf: infoURL),
-              let info = try? PropertyListSerialization.propertyList(from: infoData,
-                                                                     format: nil) as? [String: Any],
-              info["CFBundleIdentifier"] as? String == "com.vasya2004.voiceswap",
-              info["CFBundleShortVersionString"] as? String == expectedVersion else {
-            throw SuperDictateUpdateInstallerError.invalidBundle("неверный идентификатор или версия")
-        }
-
-        if let enumerator = fileManager.enumerator(at: appURL,
-                                                   includingPropertiesForKeys: [.isSymbolicLinkKey],
-                                                   options: []) {
-            for case let itemURL as URL in enumerator {
-                if (try? itemURL.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true {
-                    throw SuperDictateUpdateInstallerError.invalidBundle("архив содержит символическую ссылку")
-                }
-            }
-        }
-
-        let signature = SuperDictateAgentService.run("/usr/bin/codesign",
-                                                      ["--verify", "--deep", "--strict", appURL.path])
-        guard signature.status == 0 else {
-            throw SuperDictateUpdateInstallerError.invalidBundle("codesign: \(signature.output)")
-        }
-    }
-
-    private static func fetch(request: URLRequest,
-                              maxBytes: Int) async throws -> (Data, HTTPURLResponse) {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.urlCache = nil
-        configuration.timeoutIntervalForRequest = request.timeoutInterval
-        configuration.timeoutIntervalForResource = request.timeoutInterval
-        let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                throw SuperDictateUpdateInstallerError.network
-            }
-            guard data.count <= maxBytes else {
-                throw SuperDictateUpdateInstallerError.archiveTooLarge
-            }
-            return (data, http)
-        } catch let error as SuperDictateUpdateInstallerError {
-            throw error
-        } catch {
-            throw SuperDictateUpdateInstallerError.network
-        }
-    }
-}
-
-func shellSingleQuoted(_ value: String) -> String {
-    "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
-}
-
-private func sanitizedEnvironmentValue(_ value: String?) -> String? {
-    guard let value,
-          !value.isEmpty,
-          !value.utf8.contains(0),
-          !value.contains(where: { $0.isNewline }) else {
-        return nil
-    }
-    return value
-}
-
-private func trustedProcessEnvironment(path: String,
-                                       current: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-    var env: [String: String] = [
-        "HOME": NSHomeDirectory(),
-        "PATH": path,
-        "SHELL": "/bin/zsh",
-        "TMPDIR": NSTemporaryDirectory(),
-        "LANG": sanitizedEnvironmentValue(current["LANG"]) ?? "en_US.UTF-8",
-    ]
-
-    if let user = sanitizedEnvironmentValue(current["USER"]) {
-        env["USER"] = user
-    }
-    if let logname = sanitizedEnvironmentValue(current["LOGNAME"]) ?? env["USER"] {
-        env["LOGNAME"] = logname
-    }
-    if let encoding = sanitizedEnvironmentValue(current["__CF_USER_TEXT_ENCODING"]) {
-        env["__CF_USER_TEXT_ENCODING"] = encoding
-    }
-
-    return env
-}
-
-private func systemToolProcessEnvironment(current: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-    trustedProcessEnvironment(path: "/usr/bin:/bin:/usr/sbin:/sbin", current: current)
-}
-
-private func updateProcessEnvironment(current: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-    trustedProcessEnvironment(path: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-                              current: current)
-}
-
-func updateHelperScript(pid: pid_t,
-                        brewPath: String,
-                        targetVersion: String,
-                        statePath: String,
-                        appPath: String = INSTALLED_APP_BUNDLE_PATH,
-                        releasesPageURL: String = GITHUB_RELEASES_PAGE.absoluteString) -> String {
-    #"""
-    #!/bin/bash
-    set -u
-    umask 077
-
-    SCRIPT_PATH="$0"
-    BREW=\#(shellSingleQuoted(brewPath))
-    TARGET_VERSION=\#(shellSingleQuoted(targetVersion))
-    STATE_PATH=\#(shellSingleQuoted(statePath))
-    APP_PATH=\#(shellSingleQuoted(appPath))
-    RELEASES_PAGE=\#(shellSingleQuoted(releasesPageURL))
-    PARAKEY_PID=\#(pid)
-    CASK_TAP=\#(shellSingleQuoted(HOMEBREW_CASK_TAP))
-    CASK_TOKEN=\#(shellSingleQuoted(HOMEBREW_CASK_TOKEN))
-    CASK_INSTALLED_TOKEN=\#(shellSingleQuoted(HOMEBREW_CASK_INSTALLED_TOKEN))
-    INFO_PLIST="$APP_PATH/Contents/Info.plist"
-    APP_DIR="$(/usr/bin/dirname "$APP_PATH")"
-
-    cleanup() {
-        if [ -n "${SCRIPT_PATH:-}" ]; then
-            /bin/rm -f "$SCRIPT_PATH" 2>/dev/null || true
-        fi
-    }
-    trap cleanup EXIT
-
-    timestamp() {
-        /bin/date -u '+%Y-%m-%dT%H:%M:%SZ'
-    }
-
-    log() {
-        printf '[%s] %s\n' "$(timestamp)" "$*"
-    }
-
-    state() {
-        local phase="$1"
-        local message="$2"
-        local tmp
-        log "$message"
-        [ -n "$STATE_PATH" ] || return 0
-        tmp="${STATE_PATH}.$$"
-        if printf '%s\t%s\n' "$phase" "$message" >"$tmp"; then
-            /bin/chmod 600 "$tmp" 2>/dev/null || true
-            /bin/mv -f "$tmp" "$STATE_PATH" 2>/dev/null || true
-        else
-            /bin/rm -f "$tmp" 2>/dev/null || true
-        fi
-    }
-
-    fail() {
-        state "failed" "$*"
-        /usr/bin/open "$RELEASES_PAGE"
-        exit 1
-    }
-
-    app_version() {
-        /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST" 2>/dev/null || true
-    }
-
-    version_at_least() {
-        /usr/bin/awk -v actual="$1" -v target="$2" '
-            BEGIN {
-                actual_count = split(actual, actual_parts, ".")
-                target_count = split(target, target_parts, ".")
-                for (i = 1; i <= 4; i++) {
-                    actual_part = i <= actual_count ? actual_parts[i] : "0"
-                    target_part = i <= target_count ? target_parts[i] : "0"
-                    sub(/[^0-9].*$/, "", actual_part)
-                    sub(/[^0-9].*$/, "", target_part)
-                    actual_number = actual_part == "" ? 0 : actual_part + 0
-                    target_number = target_part == "" ? 0 : target_part + 0
-                    if (actual_number > target_number) { exit 0 }
-                    if (actual_number < target_number) { exit 1 }
-                }
-                exit 0
-            }'
-    }
-
-    run_brew() {
-        log "Running: $BREW $*"
-        "$BREW" "$@"
-    }
-
-    wait_for_parakey_exit() {
-        for _ in {1..60}; do
-            if ! kill -0 "$PARAKEY_PID" 2>/dev/null; then
-                return 0
-            fi
-            sleep 0.5
-        done
-
-        log "Parakey was still running after 30s; sending TERM before updating."
-        kill -TERM "$PARAKEY_PID" 2>/dev/null || true
-        for _ in {1..20}; do
-            if ! kill -0 "$PARAKEY_PID" 2>/dev/null; then
-                return 0
-            fi
-            sleep 0.5
-        done
-
-        fail "Parakey did not quit, so the app bundle was not touched."
-    }
-
-    installed_target_version() {
-        local installed
-        installed="$(app_version)"
-        log "Installed app version: ${installed:-unknown}"
-        [ -n "$installed" ] && version_at_least "$installed" "$TARGET_VERSION"
-    }
-
-    {
-        echo "[$(timestamp)] Parakey update starting"
-        echo "Target version: $TARGET_VERSION"
-        echo "Current installed version: $(app_version)"
-        echo "Brew: $BREW"
-        echo "Cask tap: $CASK_TAP"
-        echo "Cask: $CASK_TOKEN"
-        echo "Installed cask name: $CASK_INSTALLED_TOKEN"
-        echo "App: $APP_PATH"
-    }
-
-    state "preparing" "Preparing Homebrew for Parakey v$TARGET_VERSION..."
-
-    if ! run_brew tap "$CASK_TAP"; then
-        fail "brew tap failed; leaving the existing app in place."
-    fi
-
-    state "checking" "Checking Homebrew metadata..."
-    if ! run_brew update --force; then
-        fail "brew update failed; leaving the existing app in place."
-    fi
-
-    state "downloading" "Downloading Parakey v$TARGET_VERSION..."
-    if ! run_brew fetch --cask --force "$CASK_TOKEN"; then
-        fail "brew cask fetch failed; leaving the existing app in place."
-    fi
-
-    state "installing" "Installing Parakey v$TARGET_VERSION..."
-    wait_for_parakey_exit
-
-    if ! run_brew upgrade --cask --force --appdir="$APP_DIR" "$CASK_TOKEN"; then
-        fail "brew cask upgrade failed; leaving the existing app in place."
-    fi
-
-    state "verifying" "Verifying the installed app..."
-    if ! installed_target_version; then
-        log "brew upgrade completed without installing v$TARGET_VERSION; forcing qualified cask reinstall."
-        state "installing" "Reinstalling Parakey v$TARGET_VERSION..."
-        if ! run_brew update --force; then
-            fail "brew update failed before reinstall; leaving the existing app in place."
-        fi
-        if ! run_brew reinstall --cask --force --appdir="$APP_DIR" "$CASK_TOKEN"; then
-            fail "brew cask reinstall failed; leaving the existing app in place."
-        fi
-    fi
-
-    if ! installed_target_version; then
-        fail "Expected Parakey v$TARGET_VERSION or newer after update, but the installed app is still $(app_version)."
-    fi
-
-    state "relaunching" "Update complete. Reopening Parakey..."
-    sleep 2
-    /usr/bin/open "$APP_PATH"
-    state "complete" "Parakey v$TARGET_VERSION is installed."
-    """#
-}
-
-func superDictateDirectUpdateHelperScript(pid: pid_t,
-                                           targetVersion: String,
-                                           statePath: String,
-                                           stagedAppPath: String,
-                                           workDirectory: String,
-                                           backupAppPath: String,
-                                           appPath: String,
-                                           language: InterfaceLanguage,
-                                           agentLabel: String = AGENT_LABEL,
-                                           relaunch: Bool = true) -> String {
-    let preparing = localizedText("Подготавливаю замену приложения…",
-                                  "Preparing to replace the application…",
-                                  language: language)
-    let installing = localizedText("Устанавливаю VoiceSwap v\(targetVersion)…",
-                                    "Installing VoiceSwap v\(targetVersion)…",
-                                    language: language)
-    let verifying = localizedText("Проверяю установленную версию…",
-                                   "Verifying the installed version…",
-                                   language: language)
-    let relaunching = localizedText("Обновление готово. Запускаю VoiceSwap…",
-                                    "Update complete. Reopening VoiceSwap…",
-                                    language: language)
-    let complete = localizedText("VoiceSwap v\(targetVersion) установлена.",
-                                  "VoiceSwap v\(targetVersion) is installed.",
-                                  language: language)
-    let failed = localizedText("Обновление не установлено. Предыдущая версия восстановлена.",
-                                "The update was not installed. The previous version was restored.",
-                                language: language)
-
-    return #"""
-    #!/bin/bash
-    set -u
-    umask 077
-
-    SCRIPT_PATH="$0"
-    PANEL_PID=\#(pid)
-    TARGET_VERSION=\#(shellSingleQuoted(targetVersion))
-    STATE_PATH=\#(shellSingleQuoted(statePath))
-    STAGED_APP=\#(shellSingleQuoted(stagedAppPath))
-    WORK_DIR=\#(shellSingleQuoted(workDirectory))
-    BACKUP_APP=\#(shellSingleQuoted(backupAppPath))
-    APP_PATH=\#(shellSingleQuoted(appPath))
-    SHOULD_RELAUNCH=\#(relaunch ? "1" : "0")
-    APP_PARENT="$(/usr/bin/dirname "$APP_PATH")"
-    INFO_PLIST="$APP_PATH/Contents/Info.plist"
-    SERVICE_LABEL=\#(shellSingleQuoted(agentLabel))
-    SERVICE="gui/$(/usr/bin/id -u)/$SERVICE_LABEL"
-
-    timestamp() {
-        /bin/date -u '+%Y-%m-%dT%H:%M:%SZ'
-    }
-
-    log() {
-        printf '[%s] %s\n' "$(timestamp)" "$*"
-    }
-
-    state() {
-        local phase="$1"
-        local message="$2"
-        local tmp="${STATE_PATH}.$$"
-        log "$message"
-        if printf '%s\t%s\n' "$phase" "$message" >"$tmp"; then
-            /bin/chmod 600 "$tmp" 2>/dev/null || true
-            /bin/mv -f "$tmp" "$STATE_PATH" 2>/dev/null || true
-        else
-            /bin/rm -f "$tmp" 2>/dev/null || true
-        fi
-    }
-
-    cleanup() {
-        /bin/rm -rf "$WORK_DIR" 2>/dev/null || true
-        /bin/rm -f "$SCRIPT_PATH" 2>/dev/null || true
-    }
-    trap cleanup EXIT
-
-    wait_for_panel_exit() {
-        for _ in {1..40}; do
-            if ! /bin/kill -0 "$PANEL_PID" 2>/dev/null; then
-                return 0
-            fi
-            /bin/sleep 0.25
-        done
-        /bin/kill -TERM "$PANEL_PID" 2>/dev/null || true
-        /bin/sleep 1
-        ! /bin/kill -0 "$PANEL_PID" 2>/dev/null
-    }
-
-    verify_app() {
-        [ -x "$APP_PATH/Contents/MacOS/SuperDictate" ] || return 1
-        [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null)" = "com.vasya2004.voiceswap" ] || return 1
-        [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST" 2>/dev/null)" = "$TARGET_VERSION" ] || return 1
-        /usr/bin/codesign --verify --deep --strict "$APP_PATH"
-    }
-
-    rollback() {
-        log "Rolling back the application bundle."
-        if [ -d "$BACKUP_APP" ]; then
-            /bin/rm -rf "$APP_PATH" 2>/dev/null || true
-            /bin/mv "$BACKUP_APP" "$APP_PATH" 2>/dev/null || true
-        fi
-        state "failed" \#(shellSingleQuoted(failed))
-        if [ "$SHOULD_RELAUNCH" = "1" ] && [ -d "$APP_PATH" ]; then
-            /usr/bin/open "$APP_PATH" 2>/dev/null || true
-        fi
-        exit 1
-    }
-
-    state "preparing" \#(shellSingleQuoted(preparing))
-    [ -d "$STAGED_APP" ] || rollback
-    [ -d "$APP_PATH" ] || rollback
-    [ ! -e "$BACKUP_APP" ] || rollback
-    [ -w "$APP_PATH" ] && [ -w "$APP_PARENT" ] || rollback
-    wait_for_panel_exit || rollback
-
-    /bin/launchctl bootout "$SERVICE" >/dev/null 2>&1 || true
-    /usr/bin/pkill -f "$APP_PATH/Contents/MacOS/SuperDictate --agent" >/dev/null 2>&1 || true
-
-    state "installing" \#(shellSingleQuoted(installing))
-    /bin/mv "$APP_PATH" "$BACKUP_APP" || rollback
-    /usr/bin/ditto "$STAGED_APP" "$APP_PATH" || rollback
-
-    state "verifying" \#(shellSingleQuoted(verifying))
-    verify_app || rollback
-
-    /bin/rm -rf "$BACKUP_APP" || true
-    state "relaunching" \#(shellSingleQuoted(relaunching))
-    if [ "$SHOULD_RELAUNCH" = "1" ]; then
-        /usr/bin/open "$APP_PATH" || rollback
-    fi
-    /bin/sleep 2
-    state "complete" \#(shellSingleQuoted(complete))
-    """#
-}
-
-private func writePrivateUpdateHelperScript(_ script: String,
-                                            directory: String = NSTemporaryDirectory(),
-                                            fileName: String? = nil) throws -> String {
-    guard !directory.isEmpty else { throw posixError(EINVAL) }
-    let leafName = fileName ?? "parakey-update-\(UUID().uuidString).sh"
-    guard !leafName.isEmpty,
-          (leafName as NSString).lastPathComponent == leafName else {
-        throw posixError(EINVAL)
-    }
-
-    let path = (directory as NSString).appendingPathComponent(leafName)
-    let flags = O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW
-    let fd = Darwin.open(path, flags, PRIVATE_HELPER_FILE_MODE)
-    guard fd >= 0 else { throw currentPOSIXError() }
-
-    var closed = false
-    var removeOnFailure = true
-    do {
-        try validateSingleLinkRegularFileDescriptor(fd)
-        guard Darwin.fchmod(fd, PRIVATE_HELPER_FILE_MODE) == 0 else {
-            throw currentPOSIXError()
-        }
-        try writeAllData(Data(script.utf8), to: fd)
-        try validateSingleLinkRegularFileDescriptor(fd)
-
-        let closeStatus = Darwin.close(fd)
-        closed = true
-        guard closeStatus == 0 else { throw currentPOSIXError() }
-
-        removeOnFailure = false
-        return path
-    } catch {
-        if !closed { _ = Darwin.close(fd) }
-        if removeOnFailure { _ = Darwin.unlink(path) }
-        throw error
-    }
-}
-
-private struct PrivateOutputFile {
-    let path: String
-    let handle: FileHandle
-}
-
-private func openPrivateUpdateHelperLog(preferredPath: String = UPDATE_HELPER_LOG_PATH,
-                                        fallbackDirectory: String = NSTemporaryDirectory()) throws -> PrivateOutputFile {
-    do {
-        let fd = try openPrivateOutputFileDescriptor(atPath: preferredPath,
-                                                     exclusive: false,
-                                                     removeOnFailure: false)
-        return PrivateOutputFile(path: preferredPath,
-                                 handle: FileHandle(fileDescriptor: fd, closeOnDealloc: true))
-    } catch {
-        let fallbackPath = (fallbackDirectory as NSString)
-            .appendingPathComponent("parakey-update-\(UUID().uuidString).log")
-        let fd = try openPrivateOutputFileDescriptor(atPath: fallbackPath,
-                                                     exclusive: true,
-                                                     removeOnFailure: true)
-        return PrivateOutputFile(path: fallbackPath,
-                                 handle: FileHandle(fileDescriptor: fd, closeOnDealloc: true))
-    }
-}
-
-private func createPrivateUpdateProgressStateFile(directory: String = NSTemporaryDirectory()) throws -> String {
-    let path = (directory as NSString)
-        .appendingPathComponent("\(UPDATE_PROGRESS_APP_PREFIX)\(UUID().uuidString).state")
-    let fd = try openPrivateOutputFileDescriptor(atPath: path,
-                                                 exclusive: true,
-                                                 removeOnFailure: true)
-    do {
-        try writeAllData(Data("starting\tStarting update...\n".utf8), to: fd)
-        guard Darwin.close(fd) == 0 else { throw currentPOSIXError() }
-        return path
-    } catch {
-        _ = Darwin.close(fd)
-        _ = Darwin.unlink(path)
-        throw error
-    }
-}
-
-private func writePrivateUpdateProgressState(phase: String,
-                                             message: String,
-                                             to path: String) throws {
-    let safePhase = phase.replacingOccurrences(of: "\t", with: " ")
-        .replacingOccurrences(of: "\n", with: " ")
-    let safeMessage = message.replacingOccurrences(of: "\t", with: " ")
-        .replacingOccurrences(of: "\n", with: " ")
-    let fd = try openPrivateOutputFileDescriptor(atPath: path,
-                                                 exclusive: false,
-                                                 removeOnFailure: false)
-    do {
-        try writeAllData(Data("\(safePhase)\t\(safeMessage)\n".utf8), to: fd)
-        guard Darwin.close(fd) == 0 else { throw currentPOSIXError() }
-    } catch {
-        _ = Darwin.close(fd)
-        throw error
-    }
-}
-
-private func openPrivateOutputFileDescriptor(atPath path: String,
-                                             exclusive: Bool,
-                                             removeOnFailure: Bool) throws -> Int32 {
-    let url = URL(fileURLWithPath: path)
-    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                            withIntermediateDirectories: true)
-
-    var flags = O_WRONLY | O_CREAT | O_NOFOLLOW
-    if exclusive { flags |= O_EXCL }
-
-    let fd = Darwin.open(path, flags, PRIVATE_LOG_FILE_MODE)
-    guard fd >= 0 else { throw currentPOSIXError() }
-
-    do {
-        try validateSingleLinkRegularFileDescriptor(fd)
-        guard Darwin.fchmod(fd, PRIVATE_LOG_FILE_MODE) == 0 else {
-            throw currentPOSIXError()
-        }
-        guard Darwin.ftruncate(fd, 0) == 0 else {
-            throw currentPOSIXError()
-        }
-        return fd
-    } catch {
-        _ = Darwin.close(fd)
-        if removeOnFailure { _ = Darwin.unlink(path) }
-        throw error
-    }
-}
-
 // MARK: - App
 //
 // Single class that owns the lifecycle and the AppKit menu-bar UI.
@@ -9246,12 +7140,12 @@ private func openPrivateOutputFileDescriptor(atPath path: String,
 // TranscriptionWorker, UpdateCheck, …) hold their own state but
 // call back into `ParakeyApp` for anything that touches the menu.
 
-private enum DictationReleaseShortcut: Equatable {
+enum DictationReleaseShortcut: Equatable {
     case standard
     case alternate
 }
 
-private func shouldPressEnterAfterDictation(
+func shouldPressEnterAfterDictation(
     shortcut: DictationReleaseShortcut,
     primaryBehavior: DictationCompletionBehavior
 ) -> Bool {
@@ -9294,457 +7188,7 @@ final class CorrectionShareCleanupDelegate: NSObject, @preconcurrency NSSharingS
     }
 }
 
-private final class RecordingHUDView: NSView {
-    var visualScale: CGFloat = RecordingHUDSize.standard.visualScale {
-        didSet {
-            if oldValue != visualScale { needsDisplay = true }
-        }
-    }
-
-    var recordingColor: NSColor = .systemRed {
-        didSet {
-            if !oldValue.isEqual(recordingColor) { needsDisplay = true }
-        }
-    }
-
-    var transcribingColor: NSColor = NSColor(calibratedRed: 0.0, green: 0.44, blue: 1.0, alpha: 1) {
-        didSet {
-            if !oldValue.isEqual(transcribingColor) { needsDisplay = true }
-        }
-    }
-
-    var backgroundStyle: RecordingHUDBackgroundStyle = .system {
-        didSet {
-            if oldValue != backgroundStyle { needsDisplay = true }
-        }
-    }
-
-    var showsCapsuleStroke = true {
-        didSet {
-            if oldValue != showsCapsuleStroke { needsDisplay = true }
-        }
-    }
-
-    var transcribingElapsedOverride: CGFloat? {
-        didSet { needsDisplay = true }
-    }
-
-    var revealProgress: CGFloat = 1 {
-        didSet {
-            if oldValue != revealProgress { needsDisplay = true }
-        }
-    }
-
-    var mode: RecordingHUDMode = .recording {
-        didSet {
-            if oldValue != mode {
-                modeChangedAt = ProcessInfo.processInfo.systemUptime
-                needsDisplay = true
-            }
-        }
-    }
-    private var modeChangedAt = ProcessInfo.processInfo.systemUptime
-
-    var level: Float = 0 {
-        didSet {
-            if oldValue != level { needsDisplay = true }
-        }
-    }
-
-    var phase: CGFloat = 0 {
-        didSet {
-            if oldValue != phase { needsDisplay = true }
-        }
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        drawFloatingWaveformOnly()
-    }
-
-    private func drawFloatingWaveformOnly() {
-        let reveal = max(0, min(1, revealProgress))
-        guard reveal > 0.001 else { return }
-
-        let clamped = CGFloat(max(0, min(1, level)))
-        let audio = pow(clamped, 0.82)
-        let settlePeak: CGFloat = 0.68
-        let settleOvershoot: CGFloat = 0.10
-        let grow: CGFloat
-        if reveal <= settlePeak {
-            grow = (1 + settleOvershoot) * smootherstep(0, settlePeak, reveal)
-        } else {
-            grow = (1 + settleOvershoot)
-                - (settleOvershoot * smootherstep(settlePeak, 1, reveal))
-        }
-        let capsuleAlpha = smootherstep(0, 0.34, reveal)
-        let contentAlpha = smootherstep(0.16, 0.78, reveal)
-        let visualScale = self.visualScale
-        let startDiameter: CGFloat = 6 * visualScale
-        let finalRect = bounds.insetBy(dx: 4 * visualScale, dy: 4 * visualScale)
-        let breathingReady = smootherstep(0.82, 1, reveal)
-        let idleBreath = 0.0032 + (0.0018 * sin(phase * 0.31))
-        let voiceBreath = audio * (0.014 + (0.008 * ((sin(phase * 0.87) + 1) / 2)))
-        let liveScale = 1 + ((idleBreath + voiceBreath) * breathingReady)
-        let capsuleWidth = (startDiameter + ((finalRect.width - startDiameter) * grow)) * liveScale
-        let capsuleHeight = (startDiameter + ((finalRect.height - startDiameter) * grow)) * liveScale
-        let capsuleRect = NSRect(x: bounds.midX - (capsuleWidth / 2),
-                                 y: bounds.midY - (capsuleHeight / 2),
-                                 width: capsuleWidth,
-                                 height: capsuleHeight)
-        let capsule = NSBezierPath(roundedRect: capsuleRect,
-                                   xRadius: capsuleRect.height / 2,
-                                   yRadius: capsuleRect.height / 2)
-        let palette = backgroundPalette(alpha: capsuleAlpha)
-        palette.fill.setFill()
-        capsule.fill()
-        let accent: NSColor
-        switch mode {
-        case .transcribing: accent = transcribingColor
-        case .error:        accent = .systemYellow
-        case .recording:    accent = recordingColor
-        }
-        let vividAccent = accent
-        if showsCapsuleStroke {
-            palette.stroke.setStroke()
-            capsule.lineWidth = 1 * visualScale
-            capsule.stroke()
-        }
-
-        guard contentAlpha > 0.001 else { return }
-
-        NSGraphicsContext.saveGraphicsState()
-        guard let context = NSGraphicsContext.current?.cgContext else {
-            NSGraphicsContext.restoreGraphicsState()
-            return
-        }
-        capsule.addClip()
-        context.setAlpha(contentAlpha)
-        defer { NSGraphicsContext.restoreGraphicsState() }
-
-        if mode == .transcribing {
-            drawTranscribingWave(in: capsuleRect, alpha: 1)
-            return
-        }
-
-        if mode == .error {
-            drawErrorIndicator(in: capsuleRect)
-            return
-        }
-
-        let barCount = 8
-        let barWidth: CGFloat = 2.05 * visualScale
-        let barGap: CGFloat = 2.55 * visualScale
-        let minHeight: CGFloat = 3.0 * visualScale
-        let maxHeight = min(capsuleRect.height * 0.58, 13.2 * visualScale)
-        let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
-        let startX = bounds.midX - (totalWidth / 2)
-        let centerY = bounds.midY
-        let centerIndex = CGFloat(barCount - 1) / 2
-        let centerDenominator = max(centerIndex, 1)
-
-        for index in 0..<barCount {
-            let i = CGFloat(index)
-            let normalized = (i - centerIndex) / centerDenominator
-            let envelope = pow(max(0, cos(normalized * .pi / 2)), 0.62)
-            let traveling = (sin((phase * 1.02) - (normalized * 2.85)) + 1) / 2
-            let counter = (sin((phase * 1.57) + (i * 1.17)) + 1) / 2
-            let slowVariance = (sin((phase * 0.23) + (i * 2.11)) + 1) / 2
-            let perBarGain = 0.72 + (0.28 * slowVariance)
-            let idleMotion = 0.14 + (0.075 * traveling) + (0.055 * counter * envelope)
-            let centerBias = 0.22 + (0.78 * envelope)
-            let voiceMotion = audio
-                * centerBias
-                * (0.18 + (0.42 * traveling) + (0.14 * counter))
-                * perBarGain
-            let activity = min(0.88, idleMotion + voiceMotion)
-            let height = minHeight + ((maxHeight - minHeight) * activity)
-            let x = startX + CGFloat(index) * (barWidth + barGap)
-            let rect = NSRect(x: x,
-                              y: centerY - (height / 2),
-                              width: barWidth,
-                              height: height)
-            let path = NSBezierPath(roundedRect: rect,
-                                    xRadius: barWidth / 2,
-                                    yRadius: barWidth / 2)
-
-            let glowRect = rect.insetBy(dx: -1.1 * visualScale,
-                                        dy: -1.1 * visualScale)
-            vividAccent.withAlphaComponent(0.07 + (0.10 * activity)).setFill()
-            NSBezierPath(roundedRect: glowRect,
-                         xRadius: glowRect.width / 2,
-                         yRadius: glowRect.width / 2).fill()
-            vividAccent.withAlphaComponent(0.74 + (0.26 * activity)).setFill()
-            path.fill()
-        }
-    }
-
-    private func drawTranscribingWave(in capsuleRect: NSRect, alpha: CGFloat) {
-        guard alpha > 0.001 else { return }
-        let recordingAccent = recordingColor
-        let transcribingAccent = transcribingColor
-        let barCount = 8
-        let visualScale = self.visualScale
-        let barWidth: CGFloat = 2.05 * visualScale
-        let barGap: CGFloat = 2.55 * visualScale
-        let minHeight: CGFloat = 3.2 * visualScale
-        let maxHeight = min(capsuleRect.height * 0.60, 14.6 * visualScale)
-        let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
-        let startX = capsuleRect.midX - (totalWidth / 2)
-        let centerY = capsuleRect.midY
-        let centerIndex = CGFloat(barCount - 1) / 2
-        let centerDenominator = max(centerIndex, 1)
-        let age = transcribingElapsedOverride
-            ?? CGFloat(max(0, ProcessInfo.processInfo.systemUptime - modeChangedAt))
-        let resolveDuration = CGFloat(RECORDING_HUD_TRANSCRIBING_RESOLVE_SECONDS)
-        let resolveProgress = min(1, age / resolveDuration)
-        let loopPhase = max(0, age - resolveDuration)
-
-        for index in 0..<barCount {
-            let i = CGFloat(index)
-            let normalized = (i - centerIndex) / centerDenominator
-            let envelope = pow(max(0, cos(normalized * .pi / 2)), 0.62)
-            let barProgress = CGFloat(index) / CGFloat(max(1, barCount - 1))
-            let conversion = smoothstep(barProgress - 0.34, barProgress + 0.08, resolveProgress)
-            let front = max(0, 1 - abs(resolveProgress - barProgress) / 0.18) * (1 - smoothstep(0.82, 1, resolveProgress))
-            let reverseHead = 1 - (loopPhase * 3.8).truncatingRemainder(dividingBy: 1)
-            let reversePulse = max(0, 1 - abs(reverseHead - barProgress) / 0.24)
-            let loopWave = (sin((loopPhase * 6.2) + (i * 0.56)) + 1) / 2
-            let loopCounter = (sin((loopPhase * 2.8) + (i * 1.27)) + 1) / 2
-            let resolveLift = front * (0.48 + (0.30 * envelope))
-            let blueLoop = conversion * ((0.14 * loopWave) + (0.08 * loopCounter * envelope) + (0.34 * reversePulse))
-            let redHold = (1 - conversion) * (0.16 + (0.12 * envelope))
-            let activity = min(0.94,
-                               0.15
-                               + (0.24 * envelope)
-                               + redHold
-                               + blueLoop
-                               + resolveLift)
-            let height = minHeight + ((maxHeight - minHeight) * activity)
-            let x = startX + CGFloat(index) * (barWidth + barGap)
-            let rect = NSRect(x: x,
-                              y: centerY - (height / 2),
-                              width: barWidth,
-                              height: height)
-            let path = NSBezierPath(roundedRect: rect,
-                                    xRadius: barWidth / 2,
-                                    yRadius: barWidth / 2)
-
-            let glowRect = rect.insetBy(dx: -1.35 * visualScale,
-                                        dy: -1.45 * visualScale)
-            let fillColor = recordingAccent.blended(withFraction: conversion, of: transcribingAccent) ?? transcribingAccent
-            let glowAlpha = (0.055 + (0.12 * front) + (0.10 * reversePulse) + (0.045 * conversion)) * alpha
-            fillColor.withAlphaComponent(glowAlpha).setFill()
-            NSBezierPath(roundedRect: glowRect,
-                         xRadius: glowRect.width / 2,
-                         yRadius: glowRect.width / 2).fill()
-            fillColor.withAlphaComponent((0.58 + (0.26 * front) + (0.20 * reversePulse) + (0.14 * conversion)) * alpha).setFill()
-            path.fill()
-        }
-    }
-
-    /// Static exclamation mark drawn inside the yellow error capsule.
-    private func drawErrorIndicator(in capsuleRect: NSRect) {
-        let visualScale = self.visualScale
-        let accent = NSColor.systemYellow
-        let stemWidth: CGFloat = 2.4 * visualScale
-        let stemHeight: CGFloat = min(capsuleRect.height * 0.38, 9 * visualScale)
-        let dotDiameter: CGFloat = 2.4 * visualScale
-        let gap: CGFloat = 2.0 * visualScale
-        let totalHeight = stemHeight + gap + dotDiameter
-        let topY = capsuleRect.midY + (totalHeight / 2)
-
-        let stemRect = NSRect(x: capsuleRect.midX - (stemWidth / 2),
-                              y: topY - stemHeight,
-                              width: stemWidth,
-                              height: stemHeight)
-        accent.withAlphaComponent(0.88).setFill()
-        NSBezierPath(roundedRect: stemRect,
-                     xRadius: stemWidth / 2,
-                     yRadius: stemWidth / 2).fill()
-
-        let dotRect = NSRect(x: capsuleRect.midX - (dotDiameter / 2),
-                             y: topY - totalHeight,
-                             width: dotDiameter,
-                             height: dotDiameter)
-        NSBezierPath(ovalIn: dotRect).fill()
-    }
-
-    private func smoothstep(_ edge0: CGFloat, _ edge1: CGFloat, _ value: CGFloat) -> CGFloat {
-        guard edge0 != edge1 else { return value >= edge1 ? 1 : 0 }
-        let t = max(0, min(1, (value - edge0) / (edge1 - edge0)))
-        return t * t * (3 - (2 * t))
-    }
-
-    private func smootherstep(_ edge0: CGFloat, _ edge1: CGFloat, _ value: CGFloat) -> CGFloat {
-        guard edge0 != edge1 else { return value >= edge1 ? 1 : 0 }
-        let t = max(0, min(1, (value - edge0) / (edge1 - edge0)))
-        return t * t * t * (t * ((t * 6) - 15) + 10)
-    }
-
-    private func backgroundPalette(alpha: CGFloat) -> (fill: NSColor, stroke: NSColor) {
-        let light = shouldUseLightBackground()
-        if light {
-            return (
-                NSColor(calibratedWhite: 1.0, alpha: 0.84 * alpha),
-                NSColor(calibratedWhite: 0.0, alpha: 0.14 * alpha)
-            )
-        }
-        return (
-            NSColor(calibratedWhite: 0.0, alpha: 0.96 * alpha),
-            NSColor(calibratedWhite: 0.22, alpha: 0.26 * alpha)
-        )
-    }
-
-    private func shouldUseLightBackground() -> Bool {
-        switch backgroundStyle {
-        case .light:
-            return true
-        case .dark:
-            return false
-        case .system:
-            let appearance = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
-            return appearance == .aqua
-        }
-    }
-
-}
-
-private let RECORDING_HUD_EXPORT_ARGUMENT = "--export-hud-animation"
-
-@MainActor
-private func exportRecordingHUDAnimationFrames(to directory: URL) throws {
-    let fileManager = FileManager.default
-    if fileManager.fileExists(atPath: directory.path) {
-        try fileManager.removeItem(at: directory)
-    }
-    try fileManager.createDirectory(at: directory,
-                                    withIntermediateDirectories: true,
-                                    attributes: [.posixPermissions: 0o700])
-
-    let hudSize = Settings.shared.recordingHUDSize
-    let pointSize = hudSize.expandedSize
-    let pixelScale: CGFloat = 4
-    let pixelWidth = Int((pointSize.width * pixelScale).rounded())
-    let pixelHeight = Int((pointSize.height * pixelScale).rounded())
-    let framesPerSecond = 120.0
-    let emptyLead = 0.35
-    let recordingDuration = 6.20
-    let transcribingDuration = 2.40
-    let emptyTail = 0.50
-    let totalDuration = emptyLead
-        + RECORDING_HUD_ANIMATE_IN_SECONDS
-        + recordingDuration
-        + transcribingDuration
-        + RECORDING_HUD_ANIMATE_OUT_SECONDS
-        + emptyTail
-    let frameCount = Int((totalDuration * framesPerSecond).rounded())
-
-    let view = RecordingHUDView(frame: NSRect(origin: .zero, size: pointSize))
-    view.visualScale = hudSize.visualScale
-    let settings = Settings.shared
-    view.recordingColor = settings.recordingHUDRecordingColor.nsColor
-    view.transcribingColor = settings.recordingHUDTranscribingColor.nsColor
-    view.backgroundStyle = .dark
-    view.showsCapsuleStroke = false
-    view.mode = .recording
-
-    var phase: CGFloat = 0
-    for frameIndex in 0..<frameCount {
-        try autoreleasepool {
-            let time = Double(frameIndex) / framesPerSecond
-            let revealStart = emptyLead
-            let recordingStart = revealStart + RECORDING_HUD_ANIMATE_IN_SECONDS
-            let transcribingStart = recordingStart + recordingDuration
-            let hideStart = transcribingStart + transcribingDuration
-            let tailStart = hideStart + RECORDING_HUD_ANIMATE_OUT_SECONDS
-
-            let reveal: CGFloat
-            let level: Float
-            let mode: RecordingHUDMode
-            let transcribingElapsed: CGFloat?
-            if time < revealStart {
-                reveal = 0
-                level = 0
-                mode = .recording
-                transcribingElapsed = nil
-            } else if time < recordingStart {
-                reveal = CGFloat((time - revealStart) / RECORDING_HUD_ANIMATE_IN_SECONDS)
-                level = 0
-                mode = .recording
-                transcribingElapsed = nil
-            } else if time < transcribingStart {
-                reveal = 1
-                let voiceTime = time - recordingStart
-                let syllables = pow(max(0, sin((voiceTime * 8.7) + 0.35)), 0.58)
-                let phrasing = 0.58 + (0.42 * ((sin((voiceTime * 2.15) - 0.7) + 1) / 2))
-                let detail = 0.78 + (0.22 * ((sin((voiceTime * 13.4) + 1.8) + 1) / 2))
-                level = Float(min(0.94, 0.10 + (0.78 * syllables * phrasing * detail)))
-                mode = .recording
-                transcribingElapsed = nil
-            } else if time < hideStart {
-                reveal = 1
-                level = 0
-                mode = .transcribing
-                transcribingElapsed = CGFloat(time - transcribingStart)
-            } else if time < tailStart {
-                reveal = 1 - CGFloat((time - hideStart) / RECORDING_HUD_ANIMATE_OUT_SECONDS)
-                level = 0
-                mode = .transcribing
-                transcribingElapsed = CGFloat(time - transcribingStart)
-            } else {
-                reveal = 0
-                level = 0
-                mode = .transcribing
-                transcribingElapsed = CGFloat(time - transcribingStart)
-            }
-
-            phase += recordingHUDPhaseSpeed(mode: mode, level: level)
-                / CGFloat(framesPerSecond)
-            view.revealProgress = max(0, min(1, reveal))
-            view.mode = mode
-            view.transcribingElapsedOverride = transcribingElapsed
-            view.level = level
-            view.phase = phase
-
-            guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil,
-                                                pixelsWide: pixelWidth,
-                                                pixelsHigh: pixelHeight,
-                                                bitsPerSample: 8,
-                                                samplesPerPixel: 4,
-                                                hasAlpha: true,
-                                                isPlanar: false,
-                                                colorSpaceName: .deviceRGB,
-                                                bytesPerRow: 0,
-                                                bitsPerPixel: 0),
-                  let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
-                throw NSError(domain: "SuperDictateHUDExport", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "Could not create an RGBA frame."])
-            }
-            bitmap.size = pointSize
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = context
-            context.cgContext.clear(NSRect(origin: .zero, size: pointSize))
-            context.cgContext.scaleBy(x: pixelScale, y: pixelScale)
-            view.displayIgnoringOpacity(view.bounds, in: context)
-            context.flushGraphics()
-            NSGraphicsContext.restoreGraphicsState()
-
-            guard let png = bitmap.representation(using: .png, properties: [:]) else {
-                throw NSError(domain: "SuperDictateHUDExport", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "Could not encode a PNG frame."])
-            }
-            let name = String(format: "frame-%05d.png", frameIndex)
-            try png.write(to: directory.appendingPathComponent(name), options: .atomic)
-        }
-    }
-
-    print("HUD_EXPORT frames=\(frameCount) fps=120 size=\(pixelWidth)x\(pixelHeight) duration=\(String(format: "%.3f", totalDuration))")
-}
-
-private struct UpdateProgressLaunch {
+struct UpdateProgressLaunch {
     let statePath: String
     let logPath: String
     let targetVersion: String
@@ -9767,7 +7211,7 @@ private struct UpdateProgressLaunch {
     }
 }
 
-private struct UpdateProgressState {
+struct UpdateProgressState {
     let phase: String
     let message: String
 
@@ -9780,7 +7224,7 @@ private struct UpdateProgressState {
     }
 }
 
-private func isSafeUpdateProgressCleanupPath(_ path: String) -> Bool {
+func isSafeUpdateProgressCleanupPath(_ path: String) -> Bool {
     guard !path.isEmpty else { return false }
     let tempPath = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .standardizedFileURL
@@ -9793,7 +7237,7 @@ private func isSafeUpdateProgressCleanupPath(_ path: String) -> Bool {
 }
 
 @MainActor
-private final class UpdateProgressAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class UpdateProgressAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let launch: UpdateProgressLaunch
     private var window: NSWindow?
     private var pollTimer: Timer?
@@ -10016,7 +7460,7 @@ private final class UpdateProgressAppDelegate: NSObject, NSApplicationDelegate, 
 }
 
 @MainActor
-private final class HistoryOverlayPanel: NSPanel {
+final class HistoryOverlayPanel: NSPanel {
     var onEscape: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
@@ -10031,7 +7475,7 @@ private final class HistoryOverlayPanel: NSPanel {
     }
 }
 
-private struct AudioFileTranscriptionProgressState {
+struct AudioFileTranscriptionProgressState {
     let totalCount: Int
     var completedCount = 0
     var currentFileName = ""
@@ -10048,7 +7492,7 @@ private struct AudioFileTranscriptionProgressState {
 }
 
 @MainActor
-private final class HistoryItemLabel: NSTextField {
+final class HistoryItemLabel: NSTextField {
     init(_ text: String) {
         super.init(frame: .zero)
         stringValue = text
@@ -10078,7 +7522,7 @@ private final class HistoryItemLabel: NSTextField {
 }
 
 @MainActor
-private final class HistoryDeleteButton: NSButton {
+final class HistoryDeleteButton: NSButton {
     let historyIndex: Int
     private let normalBackground = NSColor.clear
     private let hoverBackground = NSColor.systemRed.withAlphaComponent(0.12)
@@ -10132,7 +7576,7 @@ private final class HistoryDeleteButton: NSButton {
 }
 
 @MainActor
-private final class HistoryTranscriptItemView: NSControl {
+final class HistoryTranscriptItemView: NSControl {
     enum HitAction {
         case copy(String)
         case delete(Int)
@@ -10294,7 +7738,7 @@ private final class HistoryTranscriptItemView: NSControl {
 }
 
 @MainActor
-private final class HistoryToolbarButton: NSControl {
+final class HistoryToolbarButton: NSControl {
     private let imageView = NSImageView()
     private var tracking: NSTrackingArea?
     private let normalBackground = NSColor.clear
@@ -10377,7 +7821,7 @@ private final class HistoryToolbarButton: NSControl {
     }
 }
 
-private func formattedUsageInteger(_ value: Int) -> String {
+func formattedUsageInteger(_ value: Int) -> String {
     let formatter = NumberFormatter()
     formatter.locale = Locale(identifier: "ru_RU")
     formatter.numberStyle = .decimal
@@ -10385,7 +7829,7 @@ private func formattedUsageInteger(_ value: Int) -> String {
     return formatter.string(from: NSNumber(value: max(0, value))) ?? String(max(0, value))
 }
 
-private func formattedUsageDuration(_ seconds: Double) -> String {
+func formattedUsageDuration(_ seconds: Double) -> String {
     let total = max(0, Int(seconds.rounded()))
     if total >= 3_600 {
         let hours = total / 3_600
@@ -10400,7 +7844,7 @@ private func formattedUsageDuration(_ seconds: Double) -> String {
     return "\(total) сек"
 }
 
-private func formattedUsageSeconds(_ seconds: Double) -> String {
+func formattedUsageSeconds(_ seconds: Double) -> String {
     let formatter = NumberFormatter()
     formatter.locale = Locale(identifier: "ru_RU")
     formatter.minimumFractionDigits = 2
@@ -10408,14 +7852,14 @@ private func formattedUsageSeconds(_ seconds: Double) -> String {
     return "\(formatter.string(from: NSNumber(value: max(0, seconds))) ?? "0,00") с"
 }
 
-private func compactUsageInteger(_ value: Int) -> String {
+func compactUsageInteger(_ value: Int) -> String {
     guard value >= 1_000 else { return String(max(0, value)) }
     let scaled = Double(value) / 1_000
     let digits = scaled >= 10 ? 0 : 1
     return String(format: "%.*fк", digits, scaled).replacingOccurrences(of: ".", with: ",")
 }
 
-private func russianUsageDateRange(_ snapshot: DictationUsageWeekSnapshot,
+func russianUsageDateRange(_ snapshot: DictationUsageWeekSnapshot,
                                    calendar: Calendar) -> String {
     guard let first = snapshot.days.first?.date,
           let last = snapshot.days.last?.date else { return "" }
@@ -10437,7 +7881,7 @@ private func russianUsageDateRange(_ snapshot: DictationUsageWeekSnapshot,
 }
 
 @MainActor
-private final class UsageMetricCard: NSView {
+final class UsageMetricCard: NSView {
     init(symbolName: String,
          tint: NSColor,
          title: String,
@@ -10504,7 +7948,7 @@ private final class UsageMetricCard: NSView {
 }
 
 @MainActor
-private final class DictationUsageChartView: NSView {
+final class DictationUsageChartView: NSView {
     let snapshot: DictationUsageWeekSnapshot
     private let calendar: Calendar
 
@@ -10600,7 +8044,7 @@ private final class DictationUsageChartView: NSView {
 }
 
 @MainActor
-private final class DictationSpeechTimeChartView: NSView {
+final class DictationSpeechTimeChartView: NSView {
     private let snapshot: DictationUsageWeekSnapshot
     private let calendar: Calendar
 
@@ -10761,9 +8205,21 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let insertionTargetTracker = FocusedInsertionTargetTracker()
     private let settings = Settings.shared
 
-    private var isRecording = false
-    private var isBusy = false
-    private var isReady = false
+    private var session = DictationSession()
+    private var insertionTarget: DictationInsertionTarget?
+    private var pendingResults: [NSWindowController] = []
+    private var isRecording: Bool {
+        get { session.recording }
+        set { session.recording = newValue }
+    }
+    private var isBusy: Bool {
+        get { session.busy }
+        set { session.busy = newValue }
+    }
+    private var isReady: Bool {
+        get { session.ready }
+        set { session.ready = newValue }
+    }
     private var isCoreRuntimeReady = false
     private var isSpeechModelReady = false
     private var isTerminating = false
@@ -11033,6 +8489,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         importDictationUsageFromLogIfNeeded()
 
         refreshActivationPolicy()
+        hideRecordingHUD()
+        NotificationCenter.default.addObserver(self, selector: #selector(repositionDockHUD),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         configureStatusItemImage()
@@ -11109,6 +8568,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        session.cancel()
         controlPanelProcess = nil
         controlPanelLaunchInProgress = false
         hotkeyRecorder?.cancel()
@@ -11351,7 +8811,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // makes the first-launch CoreML compile of the ANE Encoder
         // hang. The bench under experiments/swift-bench/ never opens
         // an audio session so it doesn't see this.
-        startupTask = Task { @MainActor in
+        startupTask = Task { @MainActor [self] in
             var stage = StartupFailureStage.speechModel
             defer {
                 startupTask = nil
@@ -11660,7 +9120,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         if isRecording || audio.isRunning {
-            cancelActiveRecording(reason: "system sleep", runDeferredRefresh: false)
+            recoverActiveRecordingToHistory(reason: "system sleep", runDeferredRefresh: false)
         }
 
         guard isCoreRuntimeReady || isReady else {
@@ -11999,7 +9459,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         recordingHUDRetargetWorkItem = nil
         recordingHUDTargetSessionToken &+= 1
         recordingHUDTargetQueryInFlight = false
-        recordingHUDWaitingForInitialTarget = settings.showRecordingWaveform
+        recordingHUDWaitingForInitialTarget = false
         recordingHUDTargetStabilizer.reset(initialApplicationPID: initialContext?.applicationPID)
         setMenuBarState(.recording)
         let timer = Timer(timeInterval: 1.0 / 24.0,
@@ -12011,14 +9471,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         RunLoop.main.add(timer, forMode: .common)
         recordingLevelTimer = timer
 
-        if let initialContext {
-            requestRecordingHUDTarget(context: initialContext, isInitial: true)
-        } else {
-            recordingHUDWaitingForInitialTarget = false
-            log("text insertion target unavailable at recording start: frontmost application unavailable")
-            if settings.showRecordingWaveform {
-                showRecordingHUD(mode: .recording, level: 0)
-            }
+        if settings.showRecordingWaveform {
+            showRecordingHUD(mode: .recording, level: 0)
         }
     }
 
@@ -12058,8 +9512,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let rawLevel = visibleRecordingLevel(rawLevel: unsuppressedLevel)
         let attack: Float = rawLevel > recordingVisualLevel ? 0.65 : 0.28
         recordingVisualLevel += (rawLevel - recordingVisualLevel) * attack
-        let now = ProcessInfo.processInfo.systemUptime
-        refreshRecordingHUDInsertionTargetIfNeeded(at: now)
+        // Fixed bottom-center HUD does not track the insertion point.
         if settings.showRecordingWaveform {
             guard !recordingHUDWaitingForInitialTarget else { return }
             if recordingHUDPanel?.isVisible == true {
@@ -12081,7 +9534,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard settings.showRecordingWaveform else { return }
         let panel = recordingHUDPanel ?? makeRecordingHUDPanel()
         recordingHUDPanel = panel
-        let shouldAnimate = !panel.isVisible
+        let shouldAnimate = !panel.isVisible || (recordingHUDView?.revealProgress ?? 0) < 1
+        panel.ignoresMouseEvents = false
         if let view = recordingHUDView {
             configureRecordingHUDView(view)
             view.mode = mode
@@ -12106,7 +9560,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let view = recordingHUDView {
             configureRecordingHUDView(view)
             view.mode = mode
-            view.level = level
+            if mode != .recording { view.level = level }
             view.phase = recordingHUDPhase
         }
     }
@@ -12114,68 +9568,41 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func showTranscribingHUD() {
         guard settings.showRecordingWaveform else { return }
         recordingHUDTranscribingStartedAt = ProcessInfo.processInfo.systemUptime
-        if recordingHUDPanel?.isVisible == true {
-            updateRecordingHUD(mode: .transcribing, level: 0)
-        } else {
-            showRecordingHUD(mode: .transcribing, level: 0)
-        }
+        showRecordingHUD(mode: .transcribing, level: 0)
         startRecordingHUDMotion()
+    }
+
+    @objc private func repositionDockHUD() {
+        recordingHUDPanel?.setFrame(recordingHUDFrame(size: recordingHUDExpandedSize), display: true)
     }
 
     private func hideRecordingHUD() {
         recordingHUDRetargetWorkItem?.cancel()
         recordingHUDRetargetWorkItem = nil
-        guard let panel = recordingHUDPanel else {
-            stopRecordingHUDMotion()
-            recordingHUDInsertionTargetFrame = nil
-            recordingHUDInsertionTargetVisualFrame = nil
-            recordingHUDFallbackWindowFrame = nil
-            lastRecordingHUDTargetRefreshAt = nil
-            stopRecordingHUDTargetTracking(clearTarget: true)
-            return
-        }
+        stopRecordingHUDTargetTracking(clearTarget: true)
         recordingHUDAnimationToken += 1
         stopRecordingHUDRevealAnimation(finish: false)
-        guard panel.isVisible else {
+        guard !isTerminating, settings.showRecordingWaveform else {
+            recordingHUDPanel?.orderOut(nil)
             stopRecordingHUDMotion()
-            panel.alphaValue = 1
-            panel.setFrame(recordingHUDFrame(size: recordingHUDExpandedSize), display: false)
-            recordingHUDView?.mode = .recording
-            recordingHUDView?.level = 0
-            recordingHUDView?.phase = 0
-            recordingHUDView?.revealProgress = 1
-            recordingHUDInsertionTargetFrame = nil
-            recordingHUDInsertionTargetVisualFrame = nil
-            recordingHUDFallbackWindowFrame = nil
-            lastRecordingHUDTargetRefreshAt = nil
-            stopRecordingHUDTargetTracking(clearTarget: true)
             return
         }
-
-        let token = recordingHUDAnimationToken
+        let panel = recordingHUDPanel ?? makeRecordingHUDPanel()
+        recordingHUDPanel = panel
+        let wasVisible = panel.isVisible
+        panel.setFrame(recordingHUDFrame(size: recordingHUDExpandedSize), display: true)
         panel.alphaValue = 1
-        panel.setFrame(recordingHUDFrame(size: recordingHUDExpandedSize),
-                       display: false)
-        startRecordingHUDRevealAnimation(from: recordingHUDView?.revealProgress ?? 1,
-                                         to: 0,
-                                         duration: RECORDING_HUD_ANIMATE_OUT_SECONDS) { [weak panel, weak self] in
-            guard let self, let panel else { return }
-            guard self.recordingHUDAnimationToken == token else { return }
-            panel.orderOut(nil)
-            panel.alphaValue = 1
-            panel.setFrame(self.recordingHUDFrame(size: self.recordingHUDExpandedSize),
-                           display: false)
-            self.recordingHUDView?.mode = .recording
-            self.recordingHUDView?.level = 0
-            self.recordingHUDView?.phase = 0
-            self.recordingHUDView?.revealProgress = 1
-            self.recordingHUDInsertionTargetFrame = nil
-            self.recordingHUDInsertionTargetVisualFrame = nil
-            self.recordingHUDFallbackWindowFrame = nil
-            self.lastRecordingHUDTargetRefreshAt = nil
-            self.stopRecordingHUDTargetTracking(clearTarget: true)
-            self.stopRecordingHUDMotion()
+        panel.ignoresMouseEvents = true
+        panel.orderFrontRegardless()
+        let finish: () -> Void = { [weak self] in
+            self?.recordingHUDView?.revealProgress = 0
+            self?.recordingHUDView?.level = 0
+            self?.stopRecordingHUDMotion()
         }
+        if wasVisible, (recordingHUDView?.revealProgress ?? 0) > 0 {
+            startRecordingHUDRevealAnimation(from: recordingHUDView?.revealProgress ?? 1,
+                to: 0, duration: RECORDING_HUD_ANIMATE_OUT_SECONDS, completion: finish)
+        } else { finish() }
     }
 
     private func startRecordingHUDMotion() {
@@ -12216,9 +9643,15 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let mode = recordingHUDView?.mode
             ?? ((isBusy && !isRecording) ? .transcribing : .recording)
         let speed = recordingHUDPhaseSpeed(mode: mode, level: recordingVisualLevel)
-        recordingHUDPhase += CGFloat(dt) * speed
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            recordingHUDPhase += CGFloat(dt) * speed
+        }
+        if let view = recordingHUDView, view.mode == .recording {
+            let response = Float(1 - exp(-dt * 14))
+            view.level += (recordingVisualLevel - view.level) * response
+        }
         recordingHUDView?.phase = recordingHUDPhase
-        _ = moveRecordingHUDTowardInsertionTarget(deltaTime: dt)
+        // Screen changes reposition the panel; animation never moves its window.
         recordingHUDView?.displayIfNeeded()
     }
 
@@ -12230,6 +9663,12 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             defer: false)
         let view = RecordingHUDView(frame: NSRect(origin: .zero, size: size))
         configureRecordingHUDView(view)
+        view.onCancel = { [weak self] in self?.cancelActiveRecording(reason: "HUD cancel") }
+        view.onFinish = { [weak self] in
+            guard let self, self.isRecording else { return }
+            self.hotkey.resetToggleState()
+            self.handleRelease()
+        }
         view.autoresizingMask = [.width, .height]
         panel.contentView = view
         panel.backgroundColor = .clear
@@ -12245,39 +9684,34 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func configureRecordingHUDView(_ view: RecordingHUDView) {
         view.visualScale = settings.recordingHUDSize.visualScale
-        view.recordingColor = settings.recordingHUDRecordingColor.nsColor
-        view.transcribingColor = settings.recordingHUDTranscribingColor.nsColor
-        view.backgroundStyle = settings.recordingHUDBackgroundStyle
+        view.recordingColor = .white
+        view.transcribingColor = .white
+        view.backgroundStyle = .dark
+        view.interfaceLanguage = settings.interfaceLanguage
     }
 
     private func animateRecordingHUDIn(_ panel: NSPanel) {
         recordingHUDAnimationToken += 1
         stopRecordingHUDRevealAnimation(finish: false)
-        let finalFrame = recordingHUDFrame(size: recordingHUDExpandedSize)
-        recordingHUDView?.revealProgress = 0
+        let progress = panel.isVisible ? (recordingHUDView?.revealProgress ?? 0) : 0
+        recordingHUDView?.revealProgress = progress
         panel.alphaValue = 1
-        panel.setFrame(finalFrame, display: true)
+        if !panel.isVisible {
+            panel.setFrame(recordingHUDFrame(size: recordingHUDExpandedSize), display: true)
+        }
         panel.contentView?.displayIfNeeded()
         panel.displayIfNeeded()
         panel.orderFrontRegardless()
-        startRecordingHUDRevealAnimation(from: 0,
+        startRecordingHUDRevealAnimation(from: progress,
                                          to: 1,
                                          duration: RECORDING_HUD_ANIMATE_IN_SECONDS)
     }
 
     private func recordingHUDFrame(size: NSSize) -> NSRect {
-        if let targetFrame = recordingHUDInsertionTargetVisualFrame ?? recordingHUDInsertionTargetFrame {
-            return recordingHUDFrameAboveTarget(targetFrame, size: size)
-        }
-        if let fallbackWindow = recordingHUDFallbackWindowFrame {
-            return recordingHUDFrameInsideFallbackWindow(fallbackWindow, size: size)
-        }
-        let visible = NSScreen.main?.visibleFrame
-            ?? NSScreen.screens.first?.visibleFrame
+        let visible = NSScreen.screens.first?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let x = visible.midX - (size.width / 2)
-        let y = visible.maxY - size.height - 96
-        return NSRect(x: x, y: y, width: size.width, height: size.height)
+        return NSRect(x: visible.midX - size.width / 2, y: visible.minY + 8,
+                      width: size.width, height: size.height)
     }
 
     private func recordingHUDFrameInsideFallbackWindow(_ windowFrame: NSRect,
@@ -12311,6 +9745,11 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                                   to: CGFloat,
                                                   duration: TimeInterval,
                                                   completion: (() -> Void)? = nil) {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            recordingHUDView?.revealProgress = to
+            completion?()
+            return
+        }
         recordingHUDRevealFrom = max(0, min(1, from))
         recordingHUDRevealTo = max(0, min(1, to))
         let distance = abs(recordingHUDRevealTo - recordingHUDRevealFrom)
@@ -12544,93 +9983,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return true
     }
 
-    private func moveRecordingHUDTowardInsertionTarget(deltaTime: TimeInterval) -> Bool {
-        guard let panel = recordingHUDPanel,
-              panel.isVisible,
-              recordingHUDView?.revealProgress == 1 else {
-            return false
-        }
-
-        let target = recordingHUDFrame(size: recordingHUDExpandedSize)
-        guard recordingHUDRetargetWorkItem == nil else {
-            return true
-        }
-
-        let current = panel.frame
-        let deltaX = target.midX - current.midX
-        let deltaY = target.midY - current.midY
-        if abs(deltaX) < 0.35, abs(deltaY) < 0.35 {
-            if !NSEqualRects(current, target) {
-                panel.setFrame(target, display: false)
-            }
-            return true
-        }
-
-        let response = 1 - CGFloat(exp(-Double(RECORDING_HUD_TARGET_FOLLOW_RESPONSE) * deltaTime))
-        let nextCenter = NSPoint(x: current.midX + (deltaX * response),
-                                 y: current.midY + (deltaY * response))
-        let size = recordingHUDExpandedSize
-        let next = NSRect(x: nextCenter.x - (size.width / 2),
-                          y: nextCenter.y - (size.height / 2),
-                          width: size.width,
-                          height: size.height)
-        panel.setFrame(clampedRecordingHUDFrame(next), display: false)
-        return true
-    }
-
     private func animateRecordingHUDRetargetIfNeeded(from previousTargetFrame: NSRect?,
                                                      to newTargetFrame: NSRect) {
-        guard isRecording else { return }
-        guard let panel = recordingHUDPanel,
-              panel.isVisible,
-              recordingHUDView?.mode == .recording else {
-            return
-        }
-
-        let target = recordingHUDFrameAboveTarget(newTargetFrame,
-                                                  size: recordingHUDExpandedSize)
-        let distance = hypot(target.midX - panel.frame.midX,
-                             target.midY - panel.frame.midY)
-        guard distance > 8 else {
-            if distance > 1 {
-                panel.setFrame(target, display: false)
-            }
-            return
-        }
-        if let previousTargetFrame,
-           hypot(previousTargetFrame.midX - newTargetFrame.midX,
-                 previousTargetFrame.midY - newTargetFrame.midY) < 3,
-           abs(previousTargetFrame.width - newTargetFrame.width) < 3,
-           abs(previousTargetFrame.height - newTargetFrame.height) < 3 {
-            return
-        }
-
-        recordingHUDRetargetWorkItem?.cancel()
-        recordingHUDRetargetWorkItem = nil
-        recordingHUDAnimationToken += 1
-        let token = recordingHUDAnimationToken
-        stopRecordingHUDRevealAnimation(finish: false)
-
-        startRecordingHUDRevealAnimation(from: recordingHUDView?.revealProgress ?? 1,
-                                         to: 0,
-                                         duration: RECORDING_HUD_ANIMATE_OUT_SECONDS) { [weak self, weak panel] in
-            let work = DispatchWorkItem { [weak self, weak panel] in
-                guard let self, let panel else { return }
-                self.recordingHUDRetargetWorkItem = nil
-                guard self.recordingHUDAnimationToken == token else { return }
-                panel.setFrame(target, display: false)
-                self.recordingHUDView?.revealProgress = 0
-                panel.alphaValue = 1
-                panel.contentView?.displayIfNeeded()
-                panel.displayIfNeeded()
-                panel.orderFrontRegardless()
-                self.startRecordingHUDRevealAnimation(from: 0,
-                                                      to: 1,
-                                                      duration: RECORDING_HUD_ANIMATE_IN_SECONDS)
-            }
-            self?.recordingHUDRetargetWorkItem = work
-            DispatchQueue.main.async(execute: work)
-        }
+        // The HUD stays above the Dock instead of following the insertion point.
     }
 
     private func screenForRecordingHUD() -> NSScreen {
@@ -12738,6 +10093,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             enterPermissionBlockedState(missing: missing, reason: "hotkey press")
             return
         }
+        insertionTarget = DictationInsertionTarget.capture()
         let initialInsertionContext = insertionTargetQueryContext()
         cancelAudioIdleStop()
         var recoveryJournal: PendingDictationJournal?
@@ -12757,6 +10113,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             signalDictationFailure()
             return
         }
+        session.begin()
         isRecording = true
         if setupChecklistWindow?.isVisible == true {
             hotkeyTestSucceeded = true
@@ -12776,6 +10133,8 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func handleRelease(shortcut: DictationReleaseShortcut = .standard,
                                hotkeyDetectedAt: TimeInterval? = nil) {
         guard isRecording, !isTerminating else { return }
+        let sessionID = session.id
+        let target = insertionTarget
         let releaseReceivedAt = ProcessInfo.processInfo.systemUptime
         let hotkeyDispatchSeconds = hotkeyDetectedAt.map { max(0, releaseReceivedAt - $0) }
         let settingsRefreshStartedAt = ProcessInfo.processInfo.systemUptime
@@ -12808,6 +10167,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         switch recordingReleaseAction(capturedSampleCount: samples.count) {
         case .discardTooShort(let duration):
             dur = duration
+            session.finish()
             log("release: clip too short (\(String(format: "%.2f", dur)) s), discarding")
             PendingDictationRecovery.remove(captured.recoveryURL)
             hideRecordingHUD()
@@ -12852,6 +10212,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             var dictationFailed = false
             do {
                 let completed = try await transcriptionTask.value
+                guard session.accepts(sessionID), !isTerminating else { return }
                 let transcription = completed.transcription
                 let asrTiming = transcription.timing(
                     totalSeconds: completed.completedAt - asrRequestedAt
@@ -12890,6 +10251,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         }
                         aiCleanupSeconds = ProcessInfo.processInfo.systemUptime - aiCleanupStartedAt
                     }
+                    guard session.accepts(sessionID), !isTerminating else { return }
                     finalText = finalizedDictationText(
                         finalText,
                         removeFinalPeriod: settings.removeFinalPeriod
@@ -12916,50 +10278,30 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         let missing = missingPermissions()
                         let permissionRecheckCompletedAt = ProcessInfo.processInfo.systemUptime
                         guard missing.isEmpty else {
+                            presentUninsertedResult(finalText, uncertain: false)
                             isBusy = false
+                            session.finish()
                             finishBusyHUD()
                             enterPermissionBlockedState(missing: missing, reason: "paste")
                             return
                         }
 
-                        let insertionObserver = shouldPressEnterAfterInsertion
-                            ? FocusedTextChangeObserver.capture()
-                            : nil
                         let insertionStartedAt = ProcessInfo.processInfo.systemUptime
-                        let inserted = TextInserter.insert(
-                            pastedText(from: finalText, suffix: settings.pasteSuffix)
+                        let insertionOutcome = await SafeDictationInsertion.perform(
+                            pastedText(from: finalText, suffix: settings.pasteSuffix),
+                            target: target,
+                            sendReturn: shouldPressEnterAfterInsertion,
+                            delayMilliseconds: settings.enterDelayMilliseconds,
+                            isCurrent: { self.session.accepts(sessionID) && !self.isTerminating }
                         )
+                        guard session.accepts(sessionID), !isTerminating else { return }
+                        let inserted = insertionOutcome == .confirmed
                         let insertionCompletedAt = ProcessInfo.processInfo.systemUptime
-                        var enterDelaySeconds: Double?
-                        if inserted {
-                            if shouldPressEnterAfterInsertion {
-                                let enterDelayStartedAt = ProcessInfo.processInfo.systemUptime
-                                let fieldChanged = await insertionObserver?.waitForChange(timeout: 2)
-                                if fieldChanged == false {
-                                    log("return skipped: target field content did not change")
-                                    dictationFailed = true
-                                } else {
-                                    let delayMilliseconds = insertionObserver == nil
-                                        ? max(settings.enterDelayMilliseconds, 300)
-                                        : settings.enterDelayMilliseconds
-                                    let enterDelayNanoseconds = UInt64(delayMilliseconds) * 1_000_000
-                                    if enterDelayNanoseconds > 0 {
-                                        try? await Task.sleep(nanoseconds: enterDelayNanoseconds)
-                                    }
-                                    if KeyboardShortcutPoster.postReturn() {
-                                        log("return posted after target field changed")
-                                    } else {
-                                        log("return event creation failed")
-                                    }
-                                }
-                                enterDelaySeconds = ProcessInfo.processInfo.systemUptime - enterDelayStartedAt
-                            }
-                            if settings.playFeedbackSounds {
-                                Sounds.playDone()
-                            }
-                        } else {
-                            log("text insertion failed")
-                            dictationFailed = true
+                        let enterDelaySeconds: Double? = nil
+                        if !inserted {
+                            presentUninsertedResult(finalText, uncertain: insertionOutcome == .dispatched)
+                        } else if settings.playFeedbackSounds {
+                            Sounds.playDone()
                         }
 
                         log(DictationLatencyMetrics(
@@ -12994,7 +10336,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 log("transcribe failed: \(error)")
                 dictationFailed = true
             }
+            guard session.accepts(sessionID), !isTerminating else { return }
             isBusy = false
+            session.finish(failed: dictationFailed)
             finishBusyHUD()
             if dictationFailed && !isTerminating {
                 signalDictationFailure()
@@ -13019,6 +10363,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        let recoverySession = session.id ?? session.begin()
         cancelMaxDurationAutoRelease()
         let captured = audio.endRecording()
         let duration = Double(captured.samples.count) / SAMPLE_RATE
@@ -13052,6 +10397,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     language: settings.dictationLanguage.fluidLanguage,
                     requestedAt: requestedAt
                 )
+                guard session.accepts(recoverySession), !isTerminating else { return }
                 let completedAt = ProcessInfo.processInfo.systemUptime
                 let timing = transcription.timing(totalSeconds: completedAt - requestedAt)
                 if !isTerminating {
@@ -13066,6 +10412,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             transcriptionDurationSeconds: timing.totalSeconds,
                             asrTiming: timing
                         )
+                        if settings.recentTranscriptLimit == .off {
+                            presentUninsertedResult(processed.text, uncertain: false)
+                        }
                         recordDictationUsage(text: processed.text,
                                              audioSeconds: duration,
                                              asrSeconds: timing.totalSeconds)
@@ -13078,8 +10427,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 log("dictation recovery failed; audio retained for next launch: \(error.localizedDescription)")
             }
 
-            guard !isTerminating else { return }
+            guard session.accepts(recoverySession), !isTerminating else { return }
             isBusy = false
+            session.finish(failed: recoveryFailed)
             finishBusyHUD()
             if recoveryFailed {
                 signalDictationFailure()
@@ -13098,14 +10448,33 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    private func presentUninsertedResult(_ text: String, uncertain: Bool) {
+        pendingResults.removeAll { $0.window?.isVisible != true }
+        let controller = DictationResultController(text: text, uncertain: uncertain,
+                                                   language: settings.interfaceLanguage)
+        pendingResults.append(controller)
+        controller.showWindow(nil)
+    }
+
     private func cancelActiveRecording(reason: String, runDeferredRefresh: Bool = true) {
         guard isRecording || audio.isRunning else {
             hotkey.resetToggleState()
             return
         }
-
-        recoverActiveRecordingToHistory(reason: reason,
-                                        runDeferredRefresh: runDeferredRefresh)
+        session.cancel()
+        insertionTarget = nil
+        cancelMaxDurationAutoRelease()
+        let captured = audio.endRecording()
+        PendingDictationRecovery.remove(captured.recoveryURL)
+        stopRecordingLevelMeter()
+        hotkey.resetToggleState()
+        unmuteIfWeMuted()
+        setMenuBarState(.idle)
+        rebuildMenu()
+        if !runDeferredRefresh || !runDeferredAudioRouteRefreshIfNeeded() {
+            scheduleAudioIdleStop(reason: "explicit cancellation")
+        }
+        log("recording discarded by user")
     }
 
     // Termination cannot await transcription, so it only flushes the
@@ -15143,7 +12512,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         textStack.spacing = 2
 
         textStack.addArrangedSubview(setupLabel(title, font: .systemFont(ofSize: 13, weight: .semibold)))
-        
+
         let detailLabel = setupLabel(detail, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         detailLabel.preferredMaxLayoutWidth = (buttonTitle != nil) ? 310 : 380
         textStack.addArrangedSubview(detailLabel)
@@ -15652,7 +13021,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 log("AudioCapture: configuration recovery failed: \(error.localizedDescription)")
                 self.pendingAudioRouteRefresh = true
                 if self.isRecording || self.audio.isRunning {
-                    self.cancelActiveRecording(reason: "audio configuration recovery failed")
+                    self.recoverActiveRecordingToHistory(reason: "audio configuration recovery failed")
                 } else {
                     self.restartAudioInput(reason: "audio configuration recovery failed")
                 }
@@ -17424,5242 +14793,38 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 // MARK: - Entry point
 
 #if DEBUG
-private enum SelfTestFailure: Error, CustomStringConvertible {
-    case failed(String)
-
-    var description: String {
-        switch self {
-        case .failed(let message): return message
-        }
+if CommandLine.arguments.count == 5, CommandLine.arguments[1] == "--test-download",
+   let url = URL(string: CommandLine.arguments[2]), let limit = Int(CommandLine.arguments[4]) {
+    Task {
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 5
+            _ = try await SuperDictateUpdateInstaller.streamDownload(request: request, maxBytes: limit,
+                to: URL(fileURLWithPath: CommandLine.arguments[3]))
+            print("PASS download")
+            exit(0)
+        } catch { print("REJECT download: \(error)"); exit(1) }
     }
+    RunLoop.main.run()
 }
-
-private enum ParakeySelfTest {
-    static func run(arguments: [String]) -> Int32? {
-        guard arguments.count >= 2, arguments[0] == "--self-test" else { return nil }
-        guard arguments.count == 2 else { return fail("usage") }
-
-        switch arguments[1] {
-        case "hotkey":
-            return runSuite("hotkey", testHotkey)
-        case "readiness":
-            return runSuite("readiness", testReadiness)
-        case "paste":
-            return runSuite("paste", testPasteSuffixFormatting)
-        case "history":
-            return runSuite("history", testRecentTranscriptLimit)
-        case "statistics":
-            return runSuite("statistics", testDictationUsageStatistics)
-        case "corrections":
-            return runSuite("corrections", testTranscriptCorrections)
-        case "fillers":
-            return runSuite("fillers", testFillerWordRemoval)
-        case "ai-cleanup":
-            return runSuite("ai-cleanup", testAICleanup)
-        case "audio-level":
-            return runSuite("audio-level", testAudioLevelMetering)
-        case "audio-conversion":
-            return runSuite("audio-conversion", testAudioConversion)
-        case "audio-input":
-            return runSuite("audio-input", testAudioInputDeviceFiltering)
-        case "audio-files":
-            return runSuite("audio-files", testAudioFileTranscriptionOutput)
-        case "audio-input-live":
-            return runSuite("audio-input-live", testLiveAudioInputEnumeration)
-        case "model-status":
-            return runSuite("model-status", testSpeechModelStartupStatus)
-        case "audio-route":
-            return runSuite("audio-route", testAudioRouteChangeDecision)
-        case "recording-lifecycle":
-            return runSuite("recording-lifecycle", testRecordingLifecycle)
-        case "power-state":
-            return runSuite("power-state", testPowerStateRecoveryDecision)
-        case "model-integrity":
-            return runSuite("model-integrity", testModelIntegrity)
-        case "update":
-            return runSuite("update", testUpdate)
-        case "hostile-env":
-            return runSuite("hostile-env", testHostileRegistryEnvDetection)
-        case "logging":
-            return runSuite("logging", testPrivateLogAppend)
-        case "diagnostics":
-            return runSuite("diagnostics", testDiagnostics)
-        case "insertion-target":
-            return runSuite("insertion-target", testInsertionTargetTracking)
-        case "insertion-target-live":
-            return runSuite("insertion-target-live", testLiveInsertionTargetProbe)
-        case "all":
-            return runSuite("all", testAll)
-        default:
-            return fail("unknown")
-        }
-    }
-
-    private static func runSuite(_ name: String, _ body: () throws -> Void) -> Int32 {
-        do {
-            try body()
-            print("PASS \(name)")
-            return EXIT_SUCCESS
-        } catch {
-            print("FAIL \(name): \(error)")
-            return EXIT_FAILURE
-        }
-    }
-
-    private static func fail(_ message: String) -> Int32 {
-        print("FAIL self-test: \(message)")
-        return EXIT_FAILURE
-    }
-
-    private static func testAll() throws {
-        try testHotkey()
-        try testReadiness()
-        try testPasteSuffixFormatting()
-        try testRecentTranscriptLimit()
-        try testDictationUsageStatistics()
-        try testTranscriptCorrections()
-        try testFillerWordRemoval()
-        try testAICleanup()
-        try testAudioLevelMetering()
-        try testAudioConversion()
-        try testAudioInputDeviceFiltering()
-        try testAudioFileTranscriptionOutput()
-        try testSpeechModelStartupStatus()
-        try testAudioRouteChangeDecision()
-        try testRecordingLifecycle()
-        try testPowerStateRecoveryDecision()
-        try testModelIntegrity()
-        try testUpdate()
-        try testHostileRegistryEnvDetection()
-        try testPrivateLogAppend()
-        try testDiagnostics()
-        try testInsertionTargetTracking()
-    }
-
-    private static func testAICleanup() throws {
-        try expect(AICleanupSettings.defaultModel,
-                   equals: "openai/gpt-oss-20b",
-                   "AI cleanup should default to Groq's supported low-latency model")
-
-        // Request body: roles, prompt, temperature, and token budget.
-        let body = AICleanupService.makeRequestBody(text: "hello world",
-                                                    language: .russian,
-                                                    model: "test-model")
-        try expect(body["model"] as? String,
-                   equals: "test-model",
-                   "AI cleanup body should carry the configured model")
-        let messages = body["messages"] as? [[String: String]]
-        try expect(messages?.count,
-                   equals: 4,
-                   "AI cleanup body should contain system, few-shot pair, and user messages")
-        try expect(messages?.first?["role"],
-                   equals: "system",
-                   "AI cleanup first message should be the system prompt")
-        try expect(messages?.first?["content"]?.contains("\"ru\""),
-                   equals: true,
-                   "AI cleanup system prompt should pin the dictation language")
-        try expect(messages?.first?["content"]?.contains("Never answer questions"),
-                   equals: true,
-                   "AI cleanup system prompt should forbid answering the dictation")
-        try expect(messages?[1]["role"],
-                   equals: "user",
-                   "AI cleanup few-shot example should start with a user message")
-        try expect(messages?[2]["role"],
-                   equals: "assistant",
-                   "AI cleanup few-shot example should show the rewritten question")
-        try expect(messages?.last?["role"],
-                   equals: "user",
-                   "AI cleanup last message should be the user message")
-        try expect(messages?.last?["content"]?.contains("<text>\nhello world\n</text>"),
-                   equals: true,
-                   "AI cleanup user message should carry the delimited raw transcript")
-        try expect(body["temperature"] as? Double,
-                   equals: 0.2,
-                   "AI cleanup should request low-temperature output")
-        try expect(body["max_tokens"] as? Int,
-                   equals: 256,
-                   "AI cleanup should budget at least 256 output tokens")
-
-        let gptOSSBody = AICleanupService.makeRequestBody(
-            text: "hello world",
-            language: .english,
-            model: AICleanupSettings.defaultModel,
-            useGroqExtensions: true
-        )
-        try expect(gptOSSBody["reasoning_effort"] as? String,
-                   equals: "low",
-                   "GPT-OSS cleanup should use low reasoning effort for latency")
-        try expect(gptOSSBody["include_reasoning"] as? Bool,
-                   equals: false,
-                   "GPT-OSS cleanup should omit reasoning from the response")
-        try expect(gptOSSBody["max_completion_tokens"] as? Int,
-                   equals: 256,
-                   "GPT-OSS cleanup should use the current completion-token field")
-        try expect(gptOSSBody["max_tokens"] == nil,
-                   equals: true,
-                   "GPT-OSS cleanup should not send the deprecated max_tokens field")
-        try expect(AICleanupService.isGroqAPIBaseURL(AICleanupSettings.defaultBaseURL),
-                   equals: true,
-                   "the default endpoint should enable Groq-specific request fields")
-        try expect(AICleanupService.isGroqAPIBaseURL("https://compatible.example/v1"),
-                   equals: false,
-                   "custom endpoints should keep the generic OpenAI request shape")
-
-        let longText = String(repeating: "a", count: 2000)
-        let longBody = AICleanupService.makeRequestBody(text: longText,
-                                                        language: .auto,
-                                                        model: "m")
-        try expect(longBody["max_tokens"] as? Int,
-                   equals: 1000,
-                   "AI cleanup token budget should scale with input length")
-        let autoMessages = longBody["messages"] as? [[String: String]]
-        try expect(autoMessages?.first?["content"]?.contains("ISO code"),
-                   equals: false,
-                   "AI cleanup prompt should not pin a language in auto mode")
-
-        // parseResponse: canonical OpenAI shape.
-        let okData = Data(#"{"choices":[{"message":{"role":"assistant","content":" Fixed text. "}}]}"#.utf8)
-        try expect(try AICleanupService.parseResponse(okData),
-                   equals: "Fixed text.",
-                   "AI cleanup parsing should decode and trim the first choice")
-
-        // parseResponse: error body / missing choices.
-        let errorBody = Data(#"{"error":{"message":"bad key","type":"auth"}}"#.utf8)
-        do {
-            _ = try AICleanupService.parseResponse(errorBody)
-            throw SelfTestFailure.failed("AI cleanup parsing should reject error bodies")
-        } catch AICleanupError.unexpectedResponse {
-        }
-        let noChoices = Data(#"{"choices":[]}"#.utf8)
-        do {
-            _ = try AICleanupService.parseResponse(noChoices)
-            throw SelfTestFailure.failed("AI cleanup parsing should reject empty choices")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        let modelsData = Data(#"{"object":"list","data":[{"id":"first/model"},{"id":"openai/gpt-oss-20b"}]}"#.utf8)
-        try expect(try AICleanupService.parseAvailableModelIDs(modelsData)
-            .contains(AICleanupSettings.defaultModel),
-                   equals: true,
-                   "AI cleanup connection probe should verify the configured model")
-        let malformedModelsData = Data(#"{"object":"list"}"#.utf8)
-        do {
-            _ = try AICleanupService.parseAvailableModelIDs(malformedModelsData)
-            throw SelfTestFailure.failed("AI cleanup should reject malformed model lists")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        // A syntactically valid but token-limited completion is incomplete.
-        // Accepting it would replace the full local transcript with a prefix.
-        let truncated = Data(#"{"choices":[{"finish_reason":"length","message":{"content":"Only the first half"}}]}"#.utf8)
-        do {
-            _ = try AICleanupService.parseResponse(truncated)
-            throw SelfTestFailure.failed("AI cleanup parsing should reject truncated completions")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        // parseResponse: empty model output.
-        let emptyContent = Data(#"{"choices":[{"message":{"content":"   "}}]}"#.utf8)
-        do {
-            _ = try AICleanupService.parseResponse(emptyContent)
-            throw SelfTestFailure.failed("AI cleanup parsing should reject empty content")
-        } catch AICleanupError.emptyResult {
-        }
-
-        // parseResponse: over the size cap.
-        let oversized = Data(repeating: 0x20, count: AICleanupSettings.maxResponseBytes + 1)
-        do {
-            _ = try AICleanupService.parseResponse(oversized)
-            throw SelfTestFailure.failed("AI cleanup parsing should reject oversized responses")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        // sanitizeOutput: fences, quotes, blank-line runs.
-        try expect(try AICleanupService.sanitizeOutput("```\nFixed text.\n```",
-                                                       original: "fxied text"),
-                   equals: "Fixed text.",
-                   "AI cleanup sanitize should strip code fences")
-        try expect(try AICleanupService.sanitizeOutput("```text\nFixed.\n```",
-                                                       original: "fxied"),
-                   equals: "Fixed.",
-                   "AI cleanup sanitize should strip language-tagged fences")
-        try expect(try AICleanupService.sanitizeOutput("\"Fixed text.\"",
-                                                       original: "fxied text"),
-                   equals: "Fixed text.",
-                   "AI cleanup sanitize should strip wrapping quotes")
-        try expect(try AICleanupService.sanitizeOutput("One.\n\n\n\nTwo.",
-                                                       original: "One. Two."),
-                   equals: "One.\n\nTwo.",
-                   "AI cleanup sanitize should collapse blank-line runs")
-
-        // sanitizeOutput: preamble lines and conversational replies.
-        try expect(try AICleanupService.sanitizeOutput(
-            "Here is the corrected text:\n\nFixed text.",
-            original: "fxied text"),
-                   equals: "Fixed text.",
-                   "AI cleanup sanitize should strip a corrected-text preamble")
-        try expect(try AICleanupService.sanitizeOutput(
-            "I can't make it tomorrow.",
-            original: "I can't make it tomorrow"),
-                   equals: "I can't make it tomorrow.",
-                   "AI cleanup sanitize should keep dictated refusal-like text")
-        do {
-            _ = try AICleanupService.sanitizeOutput(
-                "There's no text to correct. Please provide the text that was transcribed.",
-                original: "results")
-            throw SelfTestFailure.failed("AI cleanup sanitize should reject meta replies")
-        } catch AICleanupError.unexpectedResponse {
-        }
-        do {
-            _ = try AICleanupService.sanitizeOutput(
-                "I'm sorry, but I cannot help with that.",
-                original: "help me with that")
-            throw SelfTestFailure.failed("AI cleanup sanitize should reject assistant refusals")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        // sanitizeOutput rejects garbage so the caller falls back to the
-        // pre-AI transcript (the never-lose-a-transcript rule).
-        do {
-            _ = try AICleanupService.sanitizeOutput("   ", original: "hello")
-            throw SelfTestFailure.failed("AI cleanup sanitize should reject empty output")
-        } catch AICleanupError.unexpectedResponse {
-        }
-        let bloated = String(repeating: "x", count: 400)
-        do {
-            _ = try AICleanupService.sanitizeOutput(bloated, original: "hi")
-            throw SelfTestFailure.failed("AI cleanup sanitize should reject oversized output")
-        } catch AICleanupError.unexpectedResponse {
-        }
-        let longOriginal = String(repeating: "Полная исходная фраза. ", count: 20)
-        do {
-            _ = try AICleanupService.sanitizeOutput("Коротко.", original: longOriginal)
-            throw SelfTestFailure.failed("AI cleanup sanitize should reject implausibly short output")
-        } catch AICleanupError.unexpectedResponse {
-        }
-
-        // Base URL normalization for endpoint construction.
-        try expect(AICleanupService.normalizedBaseURL(" https://example.com/v1/ "),
-                   equals: "https://example.com/v1",
-                   "AI cleanup should trim and de-slash the base URL")
-        try expect(AICleanupService.normalizedBaseURL("  "),
-                   equals: nil,
-                   "AI cleanup should reject a blank base URL")
-        try expect(AICleanupService.normalizedBaseURL("http://example.com/v1"),
-                   equals: nil,
-                   "AI cleanup should never send transcripts or API keys over plaintext HTTP")
-        try expect(AICleanupService.normalizedBaseURL("https://user:pass@example.com/v1"),
-                   equals: nil,
-                   "AI cleanup should reject endpoint URLs containing credentials")
-        try expect(AICleanupService.normalizedBaseURL("https://example.com/v1?route=other"),
-                   equals: nil,
-                   "AI cleanup should reject endpoint URLs containing a query")
-
-        let sessionConfiguration = AICleanupService.makeSessionConfiguration(timeout: 7)
-        try expect(sessionConfiguration.timeoutIntervalForRequest,
-                   equals: 7,
-                   "AI cleanup should apply the requested network timeout")
-        try expect(sessionConfiguration.httpShouldSetCookies,
-                   equals: false,
-                   "AI cleanup should never retain or resend provider cookies")
-        try expect(sessionConfiguration.httpCookieStorage == nil,
-                   equals: true,
-                   "AI cleanup should not allocate cookie storage")
-        try expect(sessionConfiguration.urlCredentialStorage == nil,
-                   equals: true,
-                   "AI cleanup should not retain provider credentials")
-        let redirected = URLRequest(url: URL(string: "https://redirected.example/v1")!)
-        try expect(AICleanupService.redirectedRequest(redirected) == nil,
-                   equals: true,
-                   "AI cleanup should refuse redirects carrying transcript data")
-        try expect(aiCleanupConfigurationIssue(enabled: false,
-                                               baseURL: "http://invalid.example",
-                                               model: ""),
-                   equals: nil,
-                   "disabled AI cleanup should not block unrelated settings")
-        try expect(aiCleanupConfigurationIssue(enabled: true,
-                                               baseURL: "http://invalid.example",
-                                               model: "model"),
-                   equals: .baseURL,
-                   "enabled AI cleanup should require a valid HTTPS endpoint")
-        try expect(aiCleanupConfigurationIssue(enabled: true,
-                                               baseURL: "https://example.com/v1",
-                                               model: "  "),
-                   equals: .model,
-                   "enabled AI cleanup should require a model name")
-        try expect(aiCleanupConfigurationIssue(enabled: true,
-                                               baseURL: "https://example.com/v1",
-                                               model: "provider/model"),
-                   equals: nil,
-                   "valid enabled AI cleanup settings should be accepted")
-        try expect(settingsWindowContentHeight(visibleScreenHeight: 900),
-                   equals: 760,
-                   "settings should use the preferred height when it fits")
-        try expect(settingsWindowContentHeight(visibleScreenHeight: 680),
-                   equals: 600,
-                   "settings should shrink on a shorter visible screen")
-
-        let settingsSuiteName = "com.local.superdictate.self-test.ai-cleanup.\(UUID().uuidString)"
-        guard let settingsDefaults = UserDefaults(suiteName: settingsSuiteName) else {
-            throw SelfTestFailure.failed("could not create isolated AI cleanup defaults")
-        }
-        settingsDefaults.removePersistentDomain(forName: settingsSuiteName)
-        defer { settingsDefaults.removePersistentDomain(forName: settingsSuiteName) }
-        try expect(Settings(defaults: settingsDefaults).aiCleanupEnabled,
-                   equals: false,
-                   "AI cleanup should remain completely opt-in")
-        settingsDefaults.set("llama-3.1-8b-instant", forKey: "ai_cleanup_model")
-        try expect(Settings(defaults: settingsDefaults).aiCleanupModel,
-                   equals: AICleanupSettings.defaultModel,
-                   "AI cleanup should migrate the retired former default model")
-        settingsDefaults.set("custom/provider-model", forKey: "ai_cleanup_model")
-        try expect(Settings(defaults: settingsDefaults).aiCleanupModel,
-                   equals: "custom/provider-model",
-                   "AI cleanup should preserve a user-selected custom model")
-
-        try expect(finalizedDictationText("Исправленный текст.", removeFinalPeriod: true),
-                   equals: "Исправленный текст",
-                   "deterministic text settings should be applied after AI cleanup")
-    }
-
-    private static func testInsertionTargetTracking() throws {
-        func target(pid: pid_t, window: UInt, element: UInt) -> FocusedInsertionTargetFrame {
-            FocusedInsertionTargetFrame(
-                frame: NSRect(x: 100, y: 100, width: 2, height: 18),
-                visualFrame: NSRect(x: 80, y: 80, width: 300, height: 48),
-                resolutionKind: "self-test",
-                identity: FocusedInsertionTargetIdentity(
-                    applicationPID: pid,
-                    windowToken: window,
-                    elementToken: element
-                )
-            )
-        }
-
-        let first = target(pid: 10, window: 1, element: 1)
-        let secondField = target(pid: 10, window: 1, element: 2)
-        let otherApp = target(pid: 20, window: 2, element: 1)
-        var stabilizer = RecordingHUDTargetStabilizer()
-        stabilizer.reset(initialApplicationPID: 10)
-
-        switch stabilizer.observe(first) {
-        case .switchTarget(let accepted):
-            try expect(accepted.identity, equals: first.identity,
-                       "initial target from the starting app should be accepted immediately")
-        default:
-            throw SelfTestFailure.failed("initial insertion target was not accepted")
-        }
-
-        switch stabilizer.observe(first) {
-        case .update(let accepted):
-            try expect(accepted.identity, equals: first.identity,
-                       "the confirmed insertion target should update without another switch")
-        default:
-            throw SelfTestFailure.failed("confirmed insertion target did not produce an update")
-        }
-
-        if case .none = stabilizer.observe(secondField) {
-            // Expected: a new field in the same app needs two matching observations.
-        } else {
-            throw SelfTestFailure.failed("same-app target switched without confirmation")
-        }
-        switch stabilizer.observe(secondField) {
-        case .switchTarget(let accepted):
-            try expect(accepted.identity, equals: secondField.identity,
-                       "same-app target should switch after confirmation")
-        default:
-            throw SelfTestFailure.failed("same-app target did not switch after confirmation")
-        }
-
-        for attempt in 1...2 {
-            if case .none = stabilizer.observe(otherApp) {
-                continue
-            }
-            throw SelfTestFailure.failed("cross-app target switched on observation \(attempt)")
-        }
-        switch stabilizer.observe(otherApp) {
-        case .switchTarget(let accepted):
-            try expect(accepted.identity, equals: otherApp.identity,
-                       "cross-app target should switch after three stable observations")
-        default:
-            throw SelfTestFailure.failed("cross-app target did not switch after confirmation")
-        }
-
-        if case .none = stabilizer.observe(nil) {
-            // A missing AX sample must not discard the confirmed target.
-        } else {
-            throw SelfTestFailure.failed("missing target unexpectedly changed HUD ownership")
-        }
-        switch stabilizer.observe(otherApp) {
-        case .update:
-            break
-        default:
-            throw SelfTestFailure.failed("confirmed target was lost after one missing AX sample")
-        }
-
-        let screen = InsertionTargetScreenGeometry(
-            frame: NSRect(x: 0, y: 0, width: 1_920, height: 1_080),
-            visibleFrame: NSRect(x: 0, y: 0, width: 1_920, height: 1_055)
-        )
-        let context = InsertionTargetQueryContext(
-            applicationPID: 10,
-            applicationName: "self-test",
-            bundleIdentifier: "self-test",
-            screens: [screen],
-            coordinateReferenceMaxY: screen.frame.maxY,
-            lastClickPoint: nil
-        )
-        let documentFrame = NSRect(x: 560, y: 150, width: 946, height: 698)
-        let caretFrame = NSRect(x: 582, y: 419, width: 2, height: 17)
-        let documentVisualFrame = FocusedInsertionTargetLocator.visualTargetFrame(
-            elementFrame: documentFrame,
-            caretFrame: caretFrame,
-            context: context
-        )
-        try expect(documentVisualFrame.minX, equals: documentFrame.minX,
-                   "large editors should retain their block's left edge")
-        try expect(documentVisualFrame.minY, equals: caretFrame.minY,
-                   "large editors should anchor vertically to the caret line")
-        try expect(documentVisualFrame.height, equals: caretFrame.height,
-                   "large editors should not place the HUD above the whole document")
-
-        let compactFrame = NSRect(x: 700, y: 120, width: 720, height: 96)
-        try expect(
-            FocusedInsertionTargetLocator.visualTargetFrame(
-                elementFrame: compactFrame,
-                caretFrame: NSRect(x: 720, y: 150, width: 2, height: 18),
-                context: context
-            ),
-            equals: compactFrame,
-            "compact composers should keep the HUD above the whole input block"
-        )
-    }
-
-    private static func testLiveInsertionTargetProbe() throws {
-        guard let app = NSWorkspace.shared.frontmostApplication else {
-            throw SelfTestFailure.failed("frontmost application unavailable")
-        }
-        let screens = NSScreen.screens.map {
-            InsertionTargetScreenGeometry(frame: $0.frame, visibleFrame: $0.visibleFrame)
-        }
-        let context = InsertionTargetQueryContext(
-            applicationPID: app.processIdentifier,
-            applicationName: app.localizedName ?? "unknown",
-            bundleIdentifier: app.bundleIdentifier ?? "unknown",
-            screens: screens,
-            coordinateReferenceMaxY: screens.first?.frame.maxY ?? 0,
-            lastClickPoint: nil
-        )
-        let result = FocusedInsertionTargetLocator.query(context: context)
-        try expect(result.applicationPID, equals: app.processIdentifier,
-                   "live target query should preserve the requested application")
-        try expect(result.diagnostic.isEmpty, equals: false,
-                   "live target query should always explain its result")
-        let targetSummary = result.target.map {
-            "\($0.resolutionKind) frame=\(NSStringFromRect($0.frame)) visual=\(NSStringFromRect($0.visualFrame))"
-        } ?? "unavailable"
-        print("AX_PROBE \(result.applicationName) (\(result.bundleIdentifier)): \(targetSummary); \(result.diagnostic)")
-    }
-
-    private static func testPrivateLogAppend() throws {
-        try expect(
-            privacySafeLogPath("/Users/example/Documents/Parakey Diagnostics.txt"),
-            equals: "Parakey Diagnostics.txt",
-            "log path labels should omit parent directories"
-        )
-        try expect(
-            privacySafeLogPath("/"),
-            equals: "<local path>",
-            "log path labels should fall back when no filename is available"
-        )
-        try expect(
-            privacySafeBundlePath("/Applications/SuperDictate.app"),
-            equals: "/Applications/SuperDictate.app",
-            "bundle path labels should keep the canonical install path"
-        )
-        try expect(
-            privacySafeBundlePath("/Users/example/Downloads/SuperDictate.app"),
-            equals: "SuperDictate.app",
-            "bundle path labels should omit parent directories for nonstandard installs"
-        )
-
-        let fm = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-log-test-\(UUID().uuidString)", isDirectory: true)
-        try fm.createDirectory(at: root, withIntermediateDirectories: false)
-        defer { try? fm.removeItem(at: root) }
-
-        let logFile = root.appendingPathComponent("SuperDictate.log")
-        try appendPrivateLogData(Data("one\n".utf8), to: logFile)
-        try appendPrivateLogData(Data("two\n".utf8), to: logFile)
-
-        let attrs = try fm.attributesOfItem(atPath: logFile.path)
-        let permissions = (attrs[.posixPermissions] as? NSNumber)?.intValue ?? -1
-        try expect(permissions & 0o777,
-                   equals: 0o600,
-                   "log file should be private to the current user")
-        try expect(
-            String(data: try Data(contentsOf: logFile), encoding: .utf8),
-            equals: "one\ntwo\n",
-            "log appends should preserve existing content"
-        )
-
-        let target = root.appendingPathComponent("target.log")
-        try Data("target\n".utf8).write(to: target)
-        let link = root.appendingPathComponent("link.log")
-        try fm.createSymbolicLink(at: link, withDestinationURL: target)
-
-        var symlinkRejected = false
-        do {
-            try appendPrivateLogData(Data("bad\n".utf8), to: link)
-        } catch {
-            symlinkRejected = true
-        }
-        try expect(symlinkRejected,
-                   equals: true,
-                   "log appends should reject leaf symlinks")
-        try expect(
-            String(data: try Data(contentsOf: target), encoding: .utf8),
-            equals: "target\n",
-            "log symlink rejection should leave the target untouched"
-        )
-
-        let hardlinkTarget = root.appendingPathComponent("hardlink-target.log")
-        try Data("hardlink target\n".utf8).write(to: hardlinkTarget)
-        let hardlink = root.appendingPathComponent("hardlink.log")
-        guard Darwin.link(hardlinkTarget.path, hardlink.path) == 0 else {
-            throw currentPOSIXError()
-        }
-
-        var hardlinkRejected = false
-        do {
-            try appendPrivateLogData(Data("bad\n".utf8), to: hardlink)
-        } catch {
-            hardlinkRejected = true
-        }
-        try expect(hardlinkRejected,
-                   equals: true,
-                   "log appends should reject hard-linked files")
-        try expect(
-            String(data: try Data(contentsOf: hardlinkTarget), encoding: .utf8),
-            equals: "hardlink target\n",
-            "log hard-link rejection should leave the target untouched"
-        )
-    }
-
-    private static func testDiagnostics() throws {
-        let transcriptSecret = "secret dictated phrase 58A03D"
-        let correctionSecret = "private correction replacement 9F42"
-        let report = diagnosticsReportText(
-            from: DiagnosticsReportSnapshot(
-                generated: "2026-05-28T10:00:00Z",
-                appVersion: "9.8.7",
-                appBuild: "123",
-                macOS: "Version 26.0",
-                bundleID: "com.local.superdictate",
-                bundlePath: "/Applications/SuperDictate.app",
-                installKind: "Applications app",
-                status: "Hold Right Option to dictate",
-                startup: "Runtime ready",
-                speechModelReady: true,
-                coreRuntimeReady: true,
-                readyForDictation: true,
-                recordingActive: false,
-                transcribing: false,
-                memoryLines: ["Resident: 100 MB"],
-                permissionLines: ["Microphone: granted", "Accessibility: granted", "Input Monitoring: granted"],
-                settingLines: [
-                    "Speech model: Multilingual (Parakeet TDT v3)",
-                    "Language: Auto-detect",
-                    "Recent transcripts: Last 5 (1 in memory)",
-                    "Text corrections: 1 configured",
-                    "Text correction sync: configured",
-                ],
-                updateLines: ["Pending update: none"],
-                microphoneLines: ["Selected: System default", "Available inputs: none reported"],
-                logPath: "~/Library/Logs/SuperDictate.log",
-                recentLogLines: ["[10:00:00] release: 1.23 s captured, transcribing"]
-            )
-        )
-        try expect(report.contains(transcriptSecret), equals: false,
-                   "diagnostics report should not include transcript contents")
-        try expect(report.contains(correctionSecret), equals: false,
-                   "diagnostics report should not include text correction contents")
-        try expect(report.contains("Text corrections: 1 configured"), equals: true,
-                   "diagnostics report should include correction counts")
-        try expect(report.contains("Speech model: Multilingual (Parakeet TDT v3)"), equals: true,
-                   "diagnostics report should include the speech model")
-        try expect(report.contains("Recent log lines:"), equals: true,
-                   "diagnostics report should include the recent log section")
-        try expect(report.contains("Privacy: transcript text and text-correction contents are not included."),
-                   equals: true,
-                   "diagnostics report should state the privacy boundary")
-
-        let fm = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-diagnostics-test-\(UUID().uuidString)", isDirectory: true)
-        try fm.createDirectory(at: root, withIntermediateDirectories: false)
-        defer { try? fm.removeItem(at: root) }
-
-        let logFile = root.appendingPathComponent("SuperDictate.log")
-        for line in 1...6 {
-            try appendPrivateLogData(Data("[10:00:0\(line)] line \(line)\n".utf8), to: logFile)
-        }
-        try expect(
-            try recentDiagnosticLogLines(from: logFile, maxBytes: 4096, maxLines: 3),
-            equals: ["[10:00:04] line 4", "[10:00:05] line 5", "[10:00:06] line 6"],
-            "diagnostic log tail should return the newest bounded lines"
-        )
-
-        let target = root.appendingPathComponent("target.log")
-        try Data("[10:00:00] target\n".utf8).write(to: target)
-        let symlink = root.appendingPathComponent("symlink.log")
-        try fm.createSymbolicLink(at: symlink, withDestinationURL: target)
-        var symlinkRejected = false
-        do {
-            _ = try recentDiagnosticLogLines(from: symlink, maxBytes: 4096, maxLines: 3)
-        } catch {
-            symlinkRejected = true
-        }
-        try expect(symlinkRejected, equals: true,
-                   "diagnostic log tail should reject leaf symlinks")
-
-        let hardlink = root.appendingPathComponent("hardlink.log")
-        guard Darwin.link(target.path, hardlink.path) == 0 else {
-            throw currentPOSIXError()
-        }
-        var hardlinkRejected = false
-        do {
-            _ = try recentDiagnosticLogLines(from: hardlink, maxBytes: 4096, maxLines: 3)
-        } catch {
-            hardlinkRejected = true
-        }
-        try expect(hardlinkRejected, equals: true,
-                   "diagnostic log tail should reject hard-linked files")
-    }
-
-    private static func testHotkey() throws {
-        try testHotkeyPreferenceNormalization()
-        try testHotkeyPreferenceUpdateResults()
-        try testHotkeyRecorderCaptureFlow()
-        try testHotkeyRecorderRestartActions()
-        try testHandledHotkeySuppression()
-        try testCustomShortcutMatching()
-        try testModifierOnlyChordMatching()
-        try testConfigurableEnterShortcut()
-        try testFKeyAutoRepeatSuppressesWithoutAction()
-        try testRightModifierReleaseWithLeftFlagStillSet()
-        try testRepeatedHistoryTriggerDebounce()
-        try testHistoryChordShowsOverlay()
-        try testConfigurableHistoryShortcut()
-        try testOptionCommandEnterChordStopsWithEnter()
-        try testEnterShortcutModeSelection()
-        try testTogglePressFlipsOnceAndReleaseIsNoOp()
-        try testToggleGatedPressDoesNotFlipToggleState()
-        try testEscapePassesThroughWhenNotRecording()
-        try testEscapeSuppressesCancelRepeatAndKeyUpWhileRecording()
-    }
-
-    private static func testHotkeyPreferenceNormalization() throws {
-        try expect(
-            normalizedHotkeyKeycode(storedValue: NSNumber(value: Int(DEFAULT_HOTKEY_KEYCODE))),
-            equals: DEFAULT_HOTKEY_KEYCODE,
-            "stored hotkey normalization should keep supported numeric keycodes"
-        )
-        try expect(
-            normalizedHotkeyKeycode(storedValue: " 96\n"),
-            equals: CGKeyCode(96),
-            "stored hotkey normalization should accept legacy string keycodes"
-        )
-        try expect(
-            normalizedHotkeyKeycode(storedValue: NSNumber(value: 98)),
-            equals: CGKeyCode(98),
-            "stored hotkey normalization should accept recorded F-key keycodes"
-        )
-        try expect(
-            hotkeyChoice(forKeycode: CGKeyCode(98)),
-            equals: HotkeyChoice(name: "F7", keycode: 98, isModifier: false, modifierFlag: nil),
-            "recorded F-key choices should get a stable display name"
-        )
-        try expect(
-            localizedHotkeyName(hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE),
-                                language: .russian),
-            equals: "Правый Command",
-            "Russian UI should localize a modifier-only shortcut"
-        )
-        try expect(
-            localizedHotkeyName(hotkeyChoice(forKeycode: 49, modifiers: .maskAlternate),
-                                language: .russian),
-            equals: "⌥Пробел",
-            "Russian UI should localize a chord key name"
-        )
-        try expect(
-            normalizedHotkeyKeycode(storedValue: NSNumber(value: 999)),
-            equals: nil,
-            "stored hotkey normalization should reject unsupported keycodes"
-        )
-        try expect(
-            normalizedHotkeyKeycode(storedValue: NSNumber(value: -1)),
-            equals: nil,
-            "stored hotkey normalization should reject negative keycodes"
-        )
-        try expect(
-            hotkeyChoice(forKeycode: CGKeyCode(999)),
-            equals: hotkeyChoice(forKeycode: DEFAULT_HOTKEY_KEYCODE),
-            "unknown hotkey choices should fall back to the default"
-        )
-
-        try expect(
-            hotkeyRecordingDecision(for: event(.keyDown, keycode: 98)),
-            equals: .accept(HotkeyChoice(name: "F7", keycode: 98, isModifier: false, modifierFlag: nil)),
-            "hotkey recorder should accept F-key presses outside the quick-pick list"
-        )
-        try expect(
-            hotkeyRecordingDecision(for: event(.keyDown, keycode: 0)),
-            equals: .accept(HotkeyChoice(name: "A", keycode: 0, isModifier: false, modifierFlag: nil)),
-            "hotkey recorder should accept a single typing key"
-        )
-        try expect(
-            hotkeyRecordingDecision(for: event(.keyDown,
-                                               keycode: 40,
-                                               flags: CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue)),
-            equals: .accept(HotkeyChoice(name: "⇧⌘K",
-                                         keycode: 40,
-                                         isModifier: false,
-                                         modifierFlag: nil,
-                                         requiredModifiers: [.maskCommand, .maskShift])),
-            "hotkey recorder should accept multi-key shortcuts"
-        )
-        try expect(
-            hotkeyRecordingDecision(for: event(.keyDown, keycode: 98, isAutoRepeat: true)),
-            equals: .ignore,
-            "hotkey recorder should ignore auto-repeat"
-        )
-        try expect(
-            hotkeyRecordingDecision(for: event(.flagsChanged,
-                                               keycode: 61,
-                                               flags: CGEventFlags.maskAlternate.rawValue)),
-            equals: .accept(HotkeyChoice(name: "Right Option",
-                                         keycode: 61,
-                                         isModifier: true,
-                                         modifierFlag: .maskAlternate)),
-            "hotkey recorder should accept right-side modifier presses"
-        )
-        try expect(
-            hotkeyRecordingDecision(for: event(
-                .flagsChanged,
-                keycode: RIGHT_COMMAND_KEYCODE,
-                flags: CGEventFlags.maskAlternate.rawValue | CGEventFlags.maskCommand.rawValue
-            )),
-            equals: .accept(hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE,
-                                         modifiers: [.maskAlternate, .maskCommand])),
-            "hotkey recorder should accept modifier-only chords"
-        )
-    }
-
-    private static func testHotkeyPreferenceUpdateResults() throws {
-        let f5 = hotkeyChoice(forKeycode: 96)
-        let f7 = hotkeyChoice(forKeycode: 98)
-        let invalid = HotkeyChoice(name: "Escape", keycode: ESCAPE_KEYCODE, isModifier: false, modifierFlag: nil)
-
-        try expect(
-            hotkeyPreferenceUpdateResult(
-                requested: f7,
-                previous: f5,
-                persisted: f7
-            ),
-            equals: .saved(f7),
-            "hotkey preference update should save supported keys after persistence confirms them"
-        )
-        try expect(
-            hotkeyPreferenceUpdateResult(
-                requested: invalid,
-                previous: f5,
-                persisted: f5
-            ),
-            equals: .rejected("That key cannot be used for dictation."),
-            "hotkey preference update should reject unsupported keys before mutating settings"
-        )
-        try expect(
-            hotkeyPreferenceUpdateResult(
-                requested: f7,
-                previous: f5,
-                persisted: f5
-            ),
-            equals: .rolledBack(
-                previous: f5,
-                message: "Parakey could not save that hotkey, so it kept F5."
-            ),
-            "hotkey preference update should roll back when persisted settings disagree"
-        )
-    }
-
-    private static func testHotkeyRecorderCaptureFlow() throws {
-        try expect(
-            hotkeyFlags(from: [.command, .option]),
-            equals: [.maskCommand, .maskAlternate],
-            "recorder should translate AppKit modifier flags without relying on an optional CGEvent"
-        )
-
-        var singleCommand = HotkeyRecorderCaptureState()
-        let commandDown = event(.flagsChanged,
-                                keycode: RIGHT_COMMAND_KEYCODE,
-                                flags: CGEventFlags.maskCommand.rawValue)
-        let rightCommand = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE)
-        try expect(
-            singleCommand.consume(commandDown),
-            equals: .candidate(rightCommand),
-            "pressing Right Command should select it immediately as a one-key shortcut"
-        )
-        try expect(
-            singleCommand.consume(event(.flagsChanged, keycode: RIGHT_COMMAND_KEYCODE)),
-            equals: .ignore,
-            "releasing Right Command should not be required to preserve its selection"
-        )
-
-        var singleModifier = HotkeyRecorderCaptureState()
-        let optionDown = event(.flagsChanged,
-                               keycode: 58,
-                               flags: CGEventFlags.maskAlternate.rawValue)
-        let leftOption = hotkeyChoice(forKeycode: 58)
-        try expect(
-            singleModifier.consume(optionDown),
-            equals: .candidate(leftOption),
-            "pressing Option should select it immediately as a one-key shortcut"
-        )
-        try expect(
-            singleModifier.consume(event(.flagsChanged, keycode: 58)),
-            equals: .ignore,
-            "releasing Option should not change the selected shortcut"
-        )
-
-        for (keycode, flags, label) in [
-            (CGKeyCode(55), CGEventFlags.maskCommand, "Left Command"),
-            (CGKeyCode(59), CGEventFlags.maskControl, "Left Control"),
-            (FN_KEYCODE, CGEventFlags.maskSecondaryFn, "Fn"),
-        ] {
-            var modifier = HotkeyRecorderCaptureState()
-            try expect(
-                modifier.consume(event(.flagsChanged,
-                                       keycode: keycode,
-                                       flags: flags.rawValue)),
-                equals: .candidate(hotkeyChoice(forKeycode: keycode)),
-                "pressing \(label) should select it immediately"
-            )
-        }
-
-        var chord = HotkeyRecorderCaptureState()
-        _ = chord.consume(optionDown)
-        try expect(
-            chord.consume(event(.keyDown,
-                                keycode: 40,
-                                flags: CGEventFlags.maskAlternate.rawValue)),
-            equals: .candidate(hotkeyChoice(forKeycode: 40,
-                                            modifiers: .maskAlternate)),
-            "pressing a regular key while a modifier is held should select the full chord"
-        )
-
-        var modifierChord = HotkeyRecorderCaptureState()
-        _ = modifierChord.consume(optionDown)
-        try expect(
-            modifierChord.consume(event(
-                .flagsChanged,
-                keycode: RIGHT_COMMAND_KEYCODE,
-                flags: CGEventFlags.maskAlternate.rawValue | CGEventFlags.maskCommand.rawValue
-            )),
-            equals: .candidate(hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE,
-                                            modifiers: [.maskAlternate, .maskCommand])),
-            "pressing a second modifier should select a modifier-only chord"
-        )
-
-        var singleKey = HotkeyRecorderCaptureState()
-        try expect(
-            singleKey.consume(event(.keyDown, keycode: 96)),
-            equals: .candidate(hotkeyChoice(forKeycode: 96)),
-            "pressing one regular key should select it for confirmation"
-        )
-
-        var canceled = HotkeyRecorderCaptureState()
-        try expect(
-            canceled.consume(event(.keyDown, keycode: ESCAPE_KEYCODE)),
-            equals: .cancel,
-            "Escape should cancel shortcut recording"
-        )
-    }
-
-    private static func testHotkeyRecorderRestartActions() throws {
-        try expect(
-            hotkeyRecorderRestartAction(
-                shouldRestoreHotkeyTap: false,
-                isTerminating: false,
-                restartSucceeded: false
-            ),
-            equals: .none,
-            "hotkey recorder should not start a listener that was not active"
-        )
-        try expect(
-            hotkeyRecorderRestartAction(
-                shouldRestoreHotkeyTap: true,
-                isTerminating: true,
-                restartSucceeded: false
-            ),
-            equals: .none,
-            "hotkey recorder should not restart the listener during termination"
-        )
-        try expect(
-            hotkeyRecorderRestartAction(
-                shouldRestoreHotkeyTap: true,
-                isTerminating: false,
-                restartSucceeded: true
-            ),
-            equals: .restoredListener,
-            "hotkey recorder should treat a successful restart as recovered"
-        )
-        try expect(
-            hotkeyRecorderRestartAction(
-                shouldRestoreHotkeyTap: true,
-                isTerminating: false,
-                restartSucceeded: false
-            ),
-            equals: .recordFailure,
-            "hotkey recorder should surface restart failure after an active listener was paused"
-        )
-    }
-
-    private static func testReadiness() throws {
-        try expect(
-            readinessTransition(isReady: false,
-                                isCoreRuntimeReady: false,
-                                missingPermissions: []),
-            equals: .rebuildMenuOnly,
-            "not-ready app without core runtime should wait and rebuild only"
-        )
-        try expect(
-            readinessTransition(isReady: false,
-                                isCoreRuntimeReady: true,
-                                missingPermissions: [.microphone]),
-            equals: .blockForPermissions([.microphone]),
-            "core-ready app with missing microphone should block"
-        )
-        try expect(
-            readinessTransition(isReady: true,
-                                isCoreRuntimeReady: true,
-                                missingPermissions: [.accessibility]),
-            equals: .blockForPermissions([.accessibility]),
-            "ready app with missing accessibility should block"
-        )
-        try expect(
-            readinessTransition(isReady: false,
-                                isCoreRuntimeReady: true,
-                                missingPermissions: []),
-            equals: .startHotkeyListener,
-            "core-ready app with all permissions should start hotkey"
-        )
-        try expect(
-            readinessTransition(isReady: true,
-                                isCoreRuntimeReady: true,
-                                missingPermissions: []),
-            equals: .rebuildMenuOnly,
-            "ready app with all permissions should remain ready and rebuild only"
-        )
-
-        try expect(
-            productionSpeechModelProfile(rawValue: nil),
-            equals: .multilingualV3,
-            "missing speech model setting should use the production default"
-        )
-        try expect(
-            productionSpeechModelProfile(rawValue: SpeechModelProfile.multilingualV3.rawValue),
-            equals: .multilingualV3,
-            "stored v3 speech model should remain valid"
-        )
-        try expect(
-            productionSpeechModelProfile(rawValue: SpeechModelProfile.englishUnified.rawValue),
-            equals: .multilingualV3,
-            "deprecated Unified speech model setting should migrate back to v3"
-        )
-        try expect(
-            productionSpeechModelProfile(rawValue: "unknown_model"),
-            equals: .multilingualV3,
-            "unknown speech model setting should migrate back to v3"
-        )
-
-        try expect(
-            speechModelSetupRowState(profile: .multilingualV3,
-                                     isSpeechModelReady: false,
-                                     isStartupInProgress: true,
-                                     startupStatusTitle: "Downloading speech model… 50%",
-                                     failure: nil),
-            equals: SetupChecklistRowState(detail: "Downloading speech model… 50%",
-                                           status: "Loading",
-                                           buttonTitle: nil),
-            "setup checklist should show speech model progress"
-        )
-        try expect(
-            speechModelSetupRowState(profile: .multilingualV3,
-                                     isSpeechModelReady: false,
-                                     isStartupInProgress: false,
-                                     startupStatusTitle: "Loading speech model…",
-                                     failure: StartupFailure(stage: .speechModel, detail: "download failed")),
-            equals: SetupChecklistRowState(detail: "download failed",
-                                           status: "Needs retry",
-                                           buttonTitle: "Retry"),
-            "setup checklist should offer retry for speech model failures"
-        )
-        try expect(
-            speechModelSetupRowState(profile: .multilingualV3,
-                                     isSpeechModelReady: true,
-                                     isStartupInProgress: false,
-                                     startupStatusTitle: "Loading speech model…",
-                                     failure: nil),
-            equals: SetupChecklistRowState(detail: "Parakeet TDT v3 is loaded locally.",
-                                           status: "Ready",
-                                           buttonTitle: nil),
-            "setup checklist should show the speech model when ready"
-        )
-        try expect(
-            audioInputSetupRowState(isSpeechModelReady: true,
-                                    isCoreRuntimeReady: false,
-                                    isStartupInProgress: false,
-                                    failure: StartupFailure(stage: .audioInput, detail: "no input device")),
-            equals: SetupChecklistRowState(detail: "no input device",
-                                           status: "Needs retry",
-                                           buttonTitle: "Retry"),
-            "setup checklist should offer retry for audio input failures"
-        )
-        try expect(
-            audioInputSetupRowState(isSpeechModelReady: false,
-                                    isCoreRuntimeReady: false,
-                                    isStartupInProgress: true,
-                                    failure: nil),
-            equals: SetupChecklistRowState(detail: "Available after the speech model loads.",
-                                           status: "Waiting",
-                                           buttonTitle: nil),
-            "setup checklist should not start audio before the speech model is ready"
-        )
-        try expect(
-            hotkeySetupRowState(isReady: false,
-                                hotkeyTestSucceeded: false,
-                                triggerMode: .hold,
-                                hotkeyName: "Right Option",
-                                failure: StartupFailure(stage: .hotkeyListener, detail: "event tap failed")),
-            equals: SetupChecklistRowState(detail: "event tap failed",
-                                           status: "Needs retry",
-                                           buttonTitle: "Retry"),
-            "setup checklist should offer retry for hotkey listener failures"
-        )
-        try expect(
-            hotkeySetupRowState(isReady: true,
-                                hotkeyTestSucceeded: true,
-                                triggerMode: .toggle,
-                                hotkeyName: "F5",
-                                failure: nil),
-            equals: SetupChecklistRowState(detail: "Press F5 to dictate.",
-                                           status: "Detected",
-                                           buttonTitle: nil),
-            "setup checklist should show detected hotkey state"
-        )
-
-        try expect(
-            previousExitNoticeAction(previousRunWasActive: false),
-            equals: .none,
-            "clean previous exits should not show the abnormal-exit notice"
-        )
-        try expect(
-            previousExitNoticeAction(previousRunWasActive: true),
-            equals: .showNotice,
-            "active run markers should show the abnormal-exit notice on next launch"
-        )
-        try expect(
-            speechModelFailureDetail(errorDescription: "SHA-256 mismatch").contains("Reset Speech Model Cache"),
-            equals: true,
-            "speech model integrity failures should point to cache reset"
-        )
-        try expect(
-            speechModelFailureDetail(errorDescription: "download timed out").contains("audio is not uploaded"),
-            equals: true,
-            "speech model download failures should preserve the local-audio privacy boundary"
-        )
-        try expect(
-            speechModelFailureDetail(errorDescription: "Free some disk space, then retry loading the speech model."),
-            equals: "Free some disk space, then retry loading the speech model.",
-            "disk-space failures should not add unrelated reset-cache guidance"
-        )
-        try expect(
-            startupFailureDetail(stage: .audioInput, errorDescription: "no input device"),
-            equals: "no input device",
-            "non-model startup failures should keep their original detail"
-        )
-
-        let coreAudioStopError = NSError(
-            domain: "com.apple.coreaudio.avfaudio",
-            code: 1_937_010_544,
-            userInfo: ["failed call": "PerformCommand(*ioNode, kAUStartIO, NULL, 0)"]
-        )
-        let coreAudioErrorDescription = audioStartupErrorDescription(coreAudioStopError)
-        try expect(
-            coreAudioErrorDescription.contains("OSStatus 1937010544"),
-            equals: true,
-            "CoreAudio startup errors should include the decimal OSStatus"
-        )
-        try expect(
-            coreAudioErrorDescription.contains("0x73746f70"),
-            equals: true,
-            "CoreAudio startup errors should include the hex OSStatus"
-        )
-        try expect(
-            coreAudioErrorDescription.contains("'stop'"),
-            equals: true,
-            "CoreAudio startup errors should include printable four-character codes"
-        )
-        try expect(
-            coreAudioErrorDescription.contains("PerformCommand(*ioNode, kAUStartIO, NULL, 0)"),
-            equals: true,
-            "CoreAudio startup errors should preserve the failed AVFAudio call"
-        )
-        try expect(
-            startupFailureDetail(stage: .audioInput, error: coreAudioStopError).contains("restart CoreAudio"),
-            equals: true,
-            "exhausted CoreAudio startup failures should give OS recovery guidance"
-        )
-    }
-
-    private static func testPasteSuffixFormatting() throws {
-        try expect(
-            removingFinalPeriod(from: "Привет."),
-            equals: "Привет",
-            "final period postprocessing should remove one final ASCII period"
-        )
-        try expect(
-            removingFinalPeriod(from: "Привет!"),
-            equals: "Привет!",
-            "final period postprocessing should preserve an exclamation mark"
-        )
-        try expect(
-            removingFinalPeriod(from: "Привет?"),
-            equals: "Привет?",
-            "final period postprocessing should preserve a question mark"
-        )
-        try expect(
-            removingFinalPeriod(from: "Ну вот..."),
-            equals: "Ну вот...",
-            "final period postprocessing should preserve an ASCII ellipsis"
-        )
-        try expect(
-            removingFinalPeriod(from: "Ну вот…"),
-            equals: "Ну вот…",
-            "final period postprocessing should preserve a Unicode ellipsis"
-        )
-        try expect(
-            removingFinalPeriod(from: "Версия 1.2 готова."),
-            equals: "Версия 1.2 готова",
-            "final period postprocessing should preserve internal periods"
-        )
-        try expect(
-            removingFinalPeriod(from: ""),
-            equals: "",
-            "final period postprocessing should preserve empty text"
-        )
-
-        let disabledPostprocessing = processedDictationText(
-            rawTranscript: "Привет.",
-            corrections: [],
-            removeFillerWords: false,
-            removeFinalPeriod: false
-        )
-        try expect(
-            disabledPostprocessing.text,
-            equals: "Привет.",
-            "disabled final period postprocessing should preserve existing behavior"
-        )
-
-        let settingsSuiteName = "com.local.superdictate.self-test.postprocessing.\(UUID().uuidString)"
-        guard let settingsDefaults = UserDefaults(suiteName: settingsSuiteName) else {
-            throw SelfTestFailure.failed("could not create isolated postprocessing defaults")
-        }
-        settingsDefaults.removePersistentDomain(forName: settingsSuiteName)
-        defer { settingsDefaults.removePersistentDomain(forName: settingsSuiteName) }
-        let initialSettings = Settings(defaults: settingsDefaults)
-        try expect(
-            initialSettings.removeFinalPeriod,
-            equals: false,
-            "final period removal should default to disabled"
-        )
-        initialSettings.removeFinalPeriod = true
-        settingsDefaults.synchronize()
-        let reloadedSettings = Settings(defaults: settingsDefaults)
-        try expect(
-            reloadedSettings.removeFinalPeriod,
-            equals: true,
-            "final period removal should persist across settings instances"
-        )
-
-        try expect(
-            pastedText(from: "hello world", suffix: .appendSpace),
-            equals: "hello world ",
-            "append-space suffix should preserve the existing default"
-        )
-        try expect(
-            pastedText(from: "hello world", suffix: .none),
-            equals: "hello world",
-            "no suffix should paste corrected transcript unchanged"
-        )
-        try expect(
-            pastedText(from: "hello world", suffix: .appendNewline),
-            equals: "hello world\n",
-            "append-newline suffix should add a single newline"
-        )
-        try expect(
-            pastedText(from: "hello world ", suffix: .appendSpace),
-            equals: "hello world  ",
-            "suffix formatting should not trim or rewrite corrected text"
-        )
-        try expect(
-            TextInserter.defaultStrategy,
-            equals: .directUnicode,
-            "direct Unicode should be the default insertion strategy"
-        )
-        try expect(
-            textInsertionStrategyChain(primary: .clipboardPaste),
-            equals: [.clipboardPaste, .directUnicode],
-            "clipboard paste should fall back to direct Unicode insertion"
-        )
-        try expect(
-            textInsertionStrategyChain(primary: .directUnicode),
-            equals: [.directUnicode],
-            "direct Unicode insertion should not loop back to clipboard paste"
-        )
-        try expect(
-            TextInserter.defaultStrategyDescription,
-            equals: "Direct Unicode typing",
-            "diagnostics should describe the insertion fallback chain"
-        )
-        let unicodeChunks = unicodeInsertionChunks(for: "ab👩‍💻cd", maxUTF16UnitsPerEvent: 4)
-            .map { String(decoding: $0, as: UTF16.self) }
-        try expect(
-            unicodeChunks,
-            equals: ["ab", "👩‍💻", "cd"],
-            "direct Unicode insertion should keep extended grapheme clusters together while chunking"
-        )
-        try expect(
-            unicodeInsertionChunks(for: "abc", maxUTF16UnitsPerEvent: 0),
-            equals: [],
-            "direct Unicode chunking should reject invalid chunk sizes"
-        )
-        try expect(
-            clipboardPasteKeyboardEventSteps(commandKey: 0x37, pasteKey: 0x09),
-            equals: [
-                KeyboardEventStep(virtualKey: 0x37, keyDown: true, flags: .maskCommand),
-                KeyboardEventStep(virtualKey: 0x09, keyDown: true, flags: .maskCommand),
-                KeyboardEventStep(virtualKey: 0x09, keyDown: false, flags: .maskCommand),
-                KeyboardEventStep(virtualKey: 0x37, keyDown: false, flags: []),
-            ],
-            "clipboard paste should synthesize a full Command+V key sequence"
-        )
-
-        let pasteboardProbe = MainActor.assumeIsolated {
-            let pasteboardName = NSPasteboard.Name("com.local.superdictate.self-test.\(UUID().uuidString)")
-            let pasteboard = NSPasteboard(name: pasteboardName)
-            let wrote = ClipboardPasteInserter.write("pasteboard probe", to: pasteboard)
-            let snapshot = PasteboardSnapshot.capture(from: pasteboard)
-            _ = ClipboardPasteInserter.write("temporary dictation", to: pasteboard)
-            snapshot.restore(to: pasteboard)
-            return (wrote: wrote, stored: pasteboard.string(forType: .string))
-        }
-        try expect(
-            pasteboardProbe.wrote,
-            equals: true,
-            "clipboard paste should report pasteboard write success"
-        )
-        try expect(
-            pasteboardProbe.stored,
-            equals: "pasteboard probe",
-            "clipboard paste should write the intended string before posting Cmd+V"
-        )
-
-        let lazyPasteProbe = MainActor.assumeIsolated {
-            let pasteboardName = NSPasteboard.Name("com.local.superdictate.lazy-paste-test.\(UUID().uuidString)")
-            let pasteboard = NSPasteboard(name: pasteboardName)
-            _ = ClipboardPasteInserter.write("older clipboard text", to: pasteboard)
-            let snapshot = PasteboardSnapshot.capture(from: pasteboard)
-            var transactionFinished = false
-            let transaction = ClipboardPasteTransaction(
-                text: "fresh dictation",
-                pasteboard: pasteboard,
-                previousSnapshot: snapshot,
-                restoreDelay: 0.01,
-                restoreTimeout: 1
-            ) {
-                transactionFinished = true
-            }
-            let installed = transaction.install()
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.40))
-            let freshText = pasteboard.string(forType: .string)
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-            return (
-                installed: installed,
-                freshText: freshText,
-                textWasRequested: transaction.textWasRequested,
-                restoredText: pasteboard.string(forType: .string),
-                transactionFinished: transactionFinished
-            )
-        }
-        try expect(
-            lazyPasteProbe.installed,
-            equals: true,
-            "clipboard transaction should install a lazy text provider"
-        )
-        try expect(
-            lazyPasteProbe.freshText,
-            equals: "fresh dictation",
-            "the paste target should receive the current dictation"
-        )
-        try expect(
-            lazyPasteProbe.textWasRequested,
-            equals: true,
-            "clipboard transactions should confirm that the target requested dictation text"
-        )
-        try expect(
-            lazyPasteProbe.restoredText,
-            equals: "older clipboard text",
-            "the previous clipboard should be restored only after the dictation was requested"
-        )
-        try expect(
-            lazyPasteProbe.transactionFinished,
-            equals: true,
-            "clipboard transaction should release itself after restoration"
-        )
-
-        let untouchedUserCopyProbe = MainActor.assumeIsolated {
-            let pasteboardName = NSPasteboard.Name("com.local.superdictate.changed-paste-test.\(UUID().uuidString)")
-            let pasteboard = NSPasteboard(name: pasteboardName)
-            _ = ClipboardPasteInserter.write("older clipboard text", to: pasteboard)
-            let snapshot = PasteboardSnapshot.capture(from: pasteboard)
-            let transaction = ClipboardPasteTransaction(
-                text: "fresh dictation",
-                pasteboard: pasteboard,
-                previousSnapshot: snapshot,
-                restoreDelay: 0.01,
-                restoreTimeout: 0.01
-            )
-            let installed = transaction.install()
-            _ = ClipboardPasteInserter.write("new user copy", to: pasteboard)
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
-            return (installed: installed, stored: pasteboard.string(forType: .string))
-        }
-        try expect(
-            untouchedUserCopyProbe.installed,
-            equals: true,
-            "clipboard transaction should install before an external clipboard change"
-        )
-        try expect(
-            untouchedUserCopyProbe.stored,
-            equals: "new user copy",
-            "clipboard restoration must not overwrite a newer user copy"
-        )
-    }
-
-    private static func testRecentTranscriptLimit() throws {
-        let transcripts = ["newest", "second", "third", "fourth", "fifth", "sixth"]
-
-        try expect(
-            limitedRecentTranscripts(transcripts, limit: .off),
-            equals: [],
-            "off should keep no recent transcripts"
-        )
-        try expect(
-            limitedRecentTranscripts(transcripts, limit: .last1),
-            equals: ["newest"],
-            "last-one history should keep only the newest transcript"
-        )
-        try expect(
-            limitedRecentTranscripts(transcripts, limit: .last5),
-            equals: ["newest", "second", "third", "fourth", "fifth"],
-            "last-five history should preserve the current default cap"
-        )
-        try expect(
-            parseRecentTranscriptLimit(storedValue: NSNumber(value: 1)),
-            equals: .last1,
-            "numeric defaults writes should be accepted for last-one history"
-        )
-
-        let timedEntries = transcripts.enumerated().map { index, text in
-            TranscriptHistoryEntry(
-                text: text,
-                transcriptionDurationSeconds: Double(index + 1) / 10
-            )
-        }
-        try expect(
-            limitedRecentTranscriptEntries(timedEntries, limit: .last1),
-            equals: [TranscriptHistoryEntry(text: "newest", transcriptionDurationSeconds: 0.1)],
-            "history trimming should preserve transcription timing metadata"
-        )
-
-        let archivedEntries = limitedTranscriptHistoryArchive(timedEntries, maximumCount: 6)
-        try expect(
-            archivedEntries.count,
-            equals: 6,
-            "the archive should retain entries beyond the visible history limit"
-        )
-        let archiveAfterDeletion = transcriptHistoryArchive(archivedEntries, removing: 2)
-        try expect(
-            limitedRecentTranscriptEntries(archiveAfterDeletion, limit: .last5).map(\.text),
-            equals: ["newest", "second", "fourth", "fifth", "sixth"],
-            "deleting a visible history entry should backfill it from the archive"
-        )
-        try expect(
-            transcriptHistoryArchive(archivedEntries, removing: 99),
-            equals: archivedEntries,
-            "an invalid history deletion index should leave the archive unchanged"
-        )
-        try expect(
-            transcriptHistoryPageRange(itemCount: 12, requestedPage: 0),
-            equals: 0..<5,
-            "the first history page should contain the newest five archive entries"
-        )
-        try expect(
-            transcriptHistoryPageRange(itemCount: 12, requestedPage: 2),
-            equals: 10..<12,
-            "the last partial history page should preserve archive indices"
-        )
-        try expect(
-            transcriptHistoryPageRange(itemCount: 12, requestedPage: 99),
-            equals: 10..<12,
-            "an out-of-range history page should clamp to the last page"
-        )
-
-        let historyRowHitTargets = MainActor.assumeIsolated { () -> (delete: Bool, row: Bool, deleteAction: Bool, copyAction: Bool) in
-            let row = HistoryTranscriptItemView(
-                transcript: "test",
-                preview: "test",
-                transcriptionDurationSeconds: 0.1,
-                asrTiming: nil,
-                historyIndex: 0,
-                target: nil,
-                action: NSSelectorFromString("noop:"),
-                onDelete: { _ in }
-            )
-            row.frame = NSRect(x: 0, y: 0, width: 600, height: 56)
-            guard let deleteButton = row.subviews.compactMap({ $0 as? HistoryDeleteButton }).first else {
-                return (false, false, false, false)
-            }
-            deleteButton.frame = NSRect(x: 560, y: 14, width: 28, height: 28)
-            let deleteAction: Bool
-            if case .delete(0) = row.hitAction(atWindowPoint: NSPoint(x: 574, y: 28)) {
-                deleteAction = true
-            } else {
-                deleteAction = false
-            }
-            let copyAction: Bool
-            if case .copy("test") = row.hitAction(atWindowPoint: NSPoint(x: 200, y: 28)) {
-                copyAction = true
-            } else {
-                copyAction = false
-            }
-            return (
-                row.hitTest(NSPoint(x: 574, y: 28)) === row,
-                row.hitTest(NSPoint(x: 200, y: 28)) === row,
-                deleteAction,
-                copyAction
-            )
-        }
-        try expect(
-            historyRowHitTargets.delete,
-            equals: true,
-            "history rows should own delete-zone clicks"
-        )
-        try expect(
-            historyRowHitTargets.row,
-            equals: true,
-            "history rows should keep transcript clicks on the copy action"
-        )
-        try expect(
-            historyRowHitTargets.deleteAction,
-            equals: true,
-            "history delete zones should resolve to deletion"
-        )
-        try expect(
-            historyRowHitTargets.copyAction,
-            equals: true,
-            "history transcript bodies should resolve to clipboard copy"
-        )
-        try expect(
-            transcriptionDurationLabel(0.1234),
-            equals: "0.123 s",
-            "history timing should be displayed in seconds with millisecond precision"
-        )
-        try expect(
-            transcriptionDurationLabel(nil),
-            equals: "\u{2014}",
-            "legacy history entries should not invent transcription timing"
-        )
-
-        let timing = ASRTimingBreakdown(
-            totalSeconds: 0.295,
-            workerQueueSeconds: 0.001,
-            decoderPreparationSeconds: 0.002,
-            fluidCallSeconds: 0.290,
-            fluidProcessingSeconds: 0.286
-        )
-        let entriesWithBreakdown = [
-            TranscriptHistoryEntry(
-                text: "timed",
-                transcriptionDurationSeconds: timing.totalSeconds,
-                asrTiming: timing
-            )
-        ]
-        let encodedEntries = try JSONEncoder().encode(entriesWithBreakdown)
-        try expect(
-            try JSONDecoder().decode([TranscriptHistoryEntry].self, from: encodedEntries),
-            equals: entriesWithBreakdown,
-            "history timing metadata should survive persistence"
-        )
-        try expect(
-            asrTimingTooltip(timing)?.contains("FluidAudio  286.0 ms"),
-            equals: true,
-            "history timing tooltip should expose FluidAudio's own processing time"
-        )
-
-        let legacyEntryData = Data(
-            #"[{"text":"legacy","transcriptionDurationSeconds":0.25}]"#.utf8
-        )
-        try expect(
-            try JSONDecoder().decode([TranscriptHistoryEntry].self, from: legacyEntryData),
-            equals: [TranscriptHistoryEntry(text: "legacy", transcriptionDurationSeconds: 0.25)],
-            "history entries saved before detailed metrics should remain decodable"
-        )
-
-        let metricLine = DictationLatencyMetrics(
-            audioSeconds: 2,
-            hotkeyDispatchSeconds: 0.0005,
-            releasePreparationSeconds: 0.001,
-            settingsRefreshSeconds: 0.0002,
-            releasePermissionCheckSeconds: 0.0003,
-            audioFinalizeSeconds: 0.002,
-            audioDetachSeconds: 0.0001,
-            journalFlushSeconds: 0.0015,
-            audioFlattenSeconds: 0.0004,
-            transcribingUISeconds: 0.003,
-            taskQueueSeconds: 0.004,
-            releaseToASRSeconds: 0.010,
-            asrTiming: timing,
-            postprocessingSeconds: 0.005,
-            aiCleanupSeconds: nil,
-            historyPersistenceSeconds: 0.006,
-            journalCleanupSeconds: 0.007,
-            permissionRecheckSeconds: 0.008,
-            insertionDispatchSeconds: 0.009,
-            releaseToPasteDispatchSeconds: 0.330,
-            enterDelaySeconds: nil,
-            pasteSucceeded: true
-        ).logLine
-        try expect(
-            metricLine.contains("hotkey_dispatch=0.5 ms")
-                && metricLine.contains("journal_flush=1.5 ms")
-                && metricLine.contains("fluid_processing=286.0 ms")
-                && metricLine.contains("release_to_paste=330.0 ms")
-                && metricLine.contains("paste=ok"),
-            equals: true,
-            "latency log should expose model, end-to-end, and insertion outcomes"
-        )
-    }
-
-    private static func testDictationUsageStatistics() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let reference = calendar.date(from: DateComponents(year: 2026, month: 7, day: 18, hour: 12))!
-        let july10 = calendar.date(from: DateComponents(year: 2026, month: 7, day: 10, hour: 10))!
-        let july11 = calendar.date(from: DateComponents(year: 2026, month: 7, day: 11, hour: 10))!
-        let july17 = calendar.date(from: DateComponents(year: 2026, month: 7, day: 17, hour: 10))!
-        let july18 = calendar.date(from: DateComponents(year: 2026, month: 7, day: 18, hour: 10))!
-
-        var stats: [DailyDictationUsage] = []
-        stats = addingDictationUsageSample(to: stats,
-                                           at: july10,
-                                           characterCount: 40,
-                                           audioSeconds: 4,
-                                           asrSeconds: 0.4,
-                                           calendar: calendar)
-        stats = addingDictationUsageSample(to: stats,
-                                           at: july11,
-                                           characterCount: 100,
-                                           audioSeconds: 10,
-                                           asrSeconds: 0.5,
-                                           calendar: calendar)
-        stats = addingDictationUsageSample(to: stats,
-                                           at: july17,
-                                           characterCount: 300,
-                                           audioSeconds: 30,
-                                           asrSeconds: 0.75,
-                                           calendar: calendar)
-        stats = addingDictationUsageSample(to: stats,
-                                           at: july18,
-                                           characterCount: 900,
-                                           audioSeconds: 90,
-                                           asrSeconds: 1.2,
-                                           calendar: calendar)
-
-        let snapshot = lastSevenCompletedDictationUsage(stats,
-                                                         referenceDate: reference,
-                                                         calendar: calendar)
-        try expect(snapshot.days.count, equals: 7,
-                   "statistics should always contain seven completed calendar days")
-        try expect(snapshot.days.first?.usage.day, equals: "2026-07-11",
-                   "statistics should begin seven days before today")
-        try expect(snapshot.days.last?.usage.day, equals: "2026-07-17",
-                   "statistics should end yesterday")
-        try expect(snapshot.totalCharacters, equals: 400,
-                   "statistics should exclude both older data and today's dictations")
-        try expect(snapshot.totalDictations, equals: 2,
-                   "statistics should aggregate completed dictations")
-        try expect(snapshot.totalAudioSeconds, equals: 40,
-                   "statistics should aggregate recorded audio duration")
-        try expect(snapshot.totalASRSeconds, equals: 1.25,
-                   "statistics should aggregate ASR duration")
-
-        let log = """
-        [23:59:58] 2.00 s audio → 0.20 s → 20 chars
-        [00:00:01] HotkeyListener: tap active
-        [00:00:02] 3.00 s audio → 0.30 s → 30 chars
-        [00:00:03] 1.00 s audio → 0.10 s → 0 chars
-        """
-        let imported = importedDailyDictationUsage(
-            from: log,
-            fileCreatedAt: calendar.date(from: DateComponents(year: 2026, month: 7, day: 3))!,
-            calendar: calendar
-        )
-        try expect(imported.count, equals: 2,
-                   "log import should infer a new day when timestamps cross midnight")
-        try expect(imported.first?.characterCount, equals: 20,
-                   "log import should preserve the first day's characters")
-        try expect(imported.last?.characterCount, equals: 30,
-                   "log import should ignore empty transcripts")
-    }
-
-    private static func testAudioLevelMetering() throws {
-        var accumulator = AudioSampleAccumulator()
-        accumulator.append([])
-        accumulator.append([1, 2])
-        accumulator.append([3, 4, 5])
-        try expect(
-            accumulator.sampleCount,
-            equals: 5,
-            "segmented audio accumulator should track total sample count"
-        )
-        let captured = accumulator.drain()
-        try expect(
-            accumulator.sampleCount,
-            equals: 0,
-            "segmented audio accumulator should reset after drain"
-        )
-        try expect(
-            captured.flattened(),
-            equals: [1, 2, 3, 4, 5],
-            "segmented audio accumulator should preserve sample order when flattened"
-        )
-
-        try expect(
-            normalizedAudioLevel(from: Array(repeating: 0, count: 128)),
-            equals: 0,
-            "silence should map to zero recording level"
-        )
-
-        let lowVoice = normalizedAudioLevel(from: Array(repeating: 0.004, count: 128))
-        let quiet = normalizedAudioLevel(from: Array(repeating: 0.01, count: 128))
-        let normal = normalizedAudioLevel(from: Array(repeating: 0.12, count: 128))
-        let loud = normalizedAudioLevel(from: Array(repeating: 4.0, count: 128))
-
-        guard lowVoice > 0 else {
-            throw SelfTestFailure.failed("low close-mic voice should rise above the visual gate")
-        }
-        guard quiet > 0 else {
-            throw SelfTestFailure.failed("quiet speech-like input should rise above zero")
-        }
-        guard normal > quiet else {
-            throw SelfTestFailure.failed("higher RMS should produce a higher visual level")
-        }
-        try expect(
-            loud,
-            equals: 1,
-            "out-of-range samples should clamp to maximum visual level"
-        )
-
-        try expect(
-            normalizedAudioLevel(from: [.nan, .infinity, -.infinity]),
-            equals: 0,
-            "non-finite samples should not produce a visible level"
-        )
-        try expect(
-            visibleRecordingLevel(rawLevel: .nan),
-            equals: 0,
-            "visible recording level should ignore non-finite input"
-        )
-        try expect(
-            visibleRecordingLevel(rawLevel: 0.8),
-            equals: 0.8,
-            "visible recording level should pass through normal input immediately"
-        )
-        try expect(
-            visibleRecordingLevel(rawLevel: 1.2),
-            equals: 1,
-            "visible recording level should clamp high input"
-        )
-
-        let idlePhaseSpeed = recordingHUDPhaseSpeed(mode: .recording, level: 0)
-        let voicePhaseSpeed = recordingHUDPhaseSpeed(mode: .recording, level: 0.8)
-        guard voicePhaseSpeed > idlePhaseSpeed else {
-            throw SelfTestFailure.failed("voice should visibly accelerate the recording waveform")
-        }
-        try expect(
-            recordingHUDPhaseSpeed(mode: .transcribing, level: 1),
-            equals: RECORDING_HUD_TRANSCRIBING_PHASE_SPEED,
-            "transcribing animation speed should not depend on stale microphone level"
-        )
-        try expect(
-            recordingHUDPhaseSpeed(mode: .error, level: 0),
-            equals: 0,
-            "error HUD should be static (zero phase speed)"
-        )
-    }
-
-    private static func testAudioConversion() throws {
-        guard let stereoFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
-                                               sampleRate: 48_000,
-                                               channels: 2,
-                                               interleaved: false),
-              let monoFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
-                                             sampleRate: 48_000,
-                                             channels: 1,
-                                             interleaved: false),
-              let targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
-                                               sampleRate: 16_000,
-                                               channels: 1,
-                                               interleaved: false),
-              let stereo = AVAudioPCMBuffer(pcmFormat: stereoFormat, frameCapacity: 480),
-              let mono = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: 480),
-              let stereoChannels = stereo.floatChannelData,
-              let monoChannel = mono.floatChannelData?[0] else {
-            throw SelfTestFailure.failed("could not create audio conversion test buffers")
-        }
-        stereo.frameLength = 480
-        for i in 0..<480 {
-            stereoChannels[0][i] = 0.5
-            stereoChannels[1][i] = 0.02
-        }
-
-        let rms = channelRMSValues(channels: stereoChannels, channelCount: 2, frameCount: 480)
-        try expect(
-            selectedMonoMixChannelIndices(channelRMS: rms),
-            equals: [0],
-            "manual mono mix should select the active close-mic channel when another channel is near-silent"
-        )
-        writeMonoMix(channels: stereoChannels,
-                     selectedChannels: selectedMonoMixChannelIndices(channelRMS: rms),
-                     frameCount: 480,
-                     to: monoChannel)
-        mono.frameLength = 480
-        try expect(
-            monoChannel[0],
-            equals: 0.5,
-            "manual mono mix should preserve the selected active channel"
-        )
-
-        for i in 0..<480 {
-            stereoChannels[0][i] = 0.5
-            stereoChannels[1][i] = -0.5
-        }
-        let balancedRMS = channelRMSValues(channels: stereoChannels, channelCount: 2, frameCount: 480)
-        try expect(
-            selectedMonoMixChannelIndices(channelRMS: balancedRMS),
-            equals: [0, 1],
-            "manual mono mix should average multiple similarly active channels"
-        )
-        writeMonoMix(channels: stereoChannels,
-                     selectedChannels: selectedMonoMixChannelIndices(channelRMS: balancedRMS),
-                     frameCount: 480,
-                     to: monoChannel)
-        try expect(
-            monoChannel[0],
-            equals: 0,
-            "manual mono mix should average selected channels with equal weight"
-        )
-
-        guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: 320),
-              let converter = AVAudioConverter(from: monoFormat, to: targetFormat) else {
-            throw SelfTestFailure.failed("could not create audio converter")
-        }
-        var error: NSError?
-        let inputProvider = AudioConverterInputProvider(buffer: mono)
-        let status = converter.convert(to: converted, error: &error) { _, outStatus in
-            inputProvider.provide(outStatus: outStatus)
-        }
-        if status == .error {
-            throw SelfTestFailure.failed("audio conversion failed: \(error?.localizedDescription ?? "?")")
-        }
-        guard converted.format.channelCount == 1,
-              Int(converted.format.sampleRate) == 16_000,
-              converted.frameLength > 0 else {
-            throw SelfTestFailure.failed("audio conversion should produce 16 kHz mono samples")
-        }
-    }
-
-    private static func testAudioFileTranscriptionOutput() throws {
-        let suiteName = "com.local.superdictate.self-test.audio-files.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            throw SelfTestFailure.failed("could not create isolated audio-file defaults")
-        }
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let isolatedSettings = Settings(defaults: defaults)
-        try expect(isolatedSettings.audioFileTranscriptionOutputDirectory,
-                   equals: defaultAudioFileTranscriptionOutputDirectoryURL().path,
-                   "audio-file transcription should default to Desktop")
-
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("superdictate-audio-files-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory,
-                                                withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        isolatedSettings.audioFileTranscriptionOutputDirectory = directory.path + "/"
-        try expect(isolatedSettings.audioFileTranscriptionOutputDirectory,
-                   equals: directory.standardizedFileURL.path,
-                   "audio-file output directory should be standardized")
-
-        let audioURL = directory.appendingPathComponent("Meeting.m4a")
-        let first = availableTranscriptOutputURL(for: audioURL, in: directory)
-        try expect(first.lastPathComponent,
-                   equals: "Meeting.txt",
-                   "audio-file transcript should reuse the source base name")
-        try "existing".write(to: first, atomically: true, encoding: .utf8)
-        let second = availableTranscriptOutputURL(for: audioURL, in: directory)
-        try expect(second.lastPathComponent,
-                   equals: "Meeting 2.txt",
-                   "audio-file transcript should never overwrite an existing result")
-    }
-
-    private static func testTranscriptCorrections() throws {
-        try expect(
-            correctionSourcePrefill(from: "  first line\n\nsecond\tline  "),
-            equals: "first line second line",
-            "correction source prefill should collapse transcript whitespace"
-        )
-        try expect(
-            correctionSourcePrefill(from: String(repeating: "a", count: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES + 4)).utf8.count,
-            equals: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES,
-            "correction source prefill should stay inside correction source byte limits"
-        )
-        try expect(
-            correctionSourcePrefill(from: String(repeating: "é", count: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES)).utf8.count,
-            equals: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES,
-            "correction source prefill should clip at character boundaries"
-        )
-
-        let normalized = normalizedTranscriptCorrections([
-            TranscriptCorrection(source: "  Yeti   Nano  ", replacement: "  Blue mic  "),
-            TranscriptCorrection(source: "yeti nano", replacement: "USB mic"),
-            TranscriptCorrection(source: "", replacement: "ignored"),
-            TranscriptCorrection(source: "empty replacement", replacement: "   ")
-        ])
-        try expect(
-            normalized,
-            equals: [TranscriptCorrection(source: "yeti nano", replacement: "USB mic")],
-            "normalization should trim, drop incomplete entries, collapse duplicate sources, and keep the latest replacement"
-        )
-
-        let boundedCorrections = normalizedTranscriptCorrections(
-            [
-                TranscriptCorrection(source: String(repeating: "s", count: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES + 1),
-                                     replacement: "replacement"),
-                TranscriptCorrection(source: "source",
-                                     replacement: String(repeating: "r", count: MAX_TRANSCRIPT_CORRECTION_REPLACEMENT_BYTES + 1)),
-                TranscriptCorrection(source: "nul\u{0}source", replacement: "replacement"),
-                TranscriptCorrection(source: "valid", replacement: "replacement")
-            ]
-            + (0..<(MAX_TRANSCRIPT_CORRECTIONS + 3)).map {
-                TranscriptCorrection(source: "source-\($0)", replacement: "replacement-\($0)")
-            }
-            + [
-                TranscriptCorrection(source: "source-0", replacement: "updated")
-            ]
-        )
-        try expect(
-            boundedCorrections.count,
-            equals: MAX_TRANSCRIPT_CORRECTIONS,
-            "normalization should cap stored correction count"
-        )
-        try expect(
-            boundedCorrections.first,
-            equals: TranscriptCorrection(source: "valid", replacement: "replacement"),
-            "normalization should keep valid corrections while dropping oversized and NUL-containing entries"
-        )
-        try expect(
-            boundedCorrections.dropFirst().first,
-            equals: TranscriptCorrection(source: "source-0", replacement: "updated"),
-            "normalization should still let later duplicates update retained corrections"
-        )
-        try expect(
-            boundedCorrections.contains(where: { $0.source == "source-\(MAX_TRANSCRIPT_CORRECTIONS)" }),
-            equals: false,
-            "normalization should drop new unique corrections after the cap"
-        )
-
-        let applied = TranscriptCorrector.apply(
-            to: "parakeet tdt and parakeetish and PARakeet",
-            corrections: [
-                TranscriptCorrection(source: "parakeet", replacement: "Parakey"),
-                TranscriptCorrection(source: "parakeet tdt", replacement: "Parakeet TDT")
-            ]
-        )
-        try expect(
-            applied.text,
-            equals: "Parakeet TDT and parakeetish and Parakey",
-            "corrections should prefer longer phrases and respect word boundaries"
-        )
-        try expect(
-            applied.appliedCount,
-            equals: 2,
-            "correction count should track applied non-overlapping replacements"
-        )
-
-        let transferred = try TranscriptCorrectionsTransfer.decode(
-            TranscriptCorrectionsTransfer.encode([
-                TranscriptCorrection(source: "  Right Option  ", replacement: "R-Option")
-            ])
-        )
-        try expect(
-            transferred,
-            equals: [TranscriptCorrection(source: "Right Option", replacement: "R-Option")],
-            "document transfer should round-trip normalized corrections"
-        )
-
-        let legacyData = try JSONEncoder().encode([
-            TranscriptCorrection(source: "  old phrase  ", replacement: "new phrase")
-        ])
-        try expect(
-            try TranscriptCorrectionsTransfer.decode(legacyData),
-            equals: [TranscriptCorrection(source: "old phrase", replacement: "new phrase")],
-            "legacy bare-array correction files should remain importable"
-        )
-
-        var oversizedDecodeRejected = false
-        do {
-            _ = try TranscriptCorrectionsTransfer.decode(
-                Data(repeating: 0x20, count: TranscriptCorrectionsTransfer.maxFileBytes + 1)
-            )
-        } catch let error as TranscriptCorrectionsTransferError {
-            if case .fileTooLarge = error {
-                oversizedDecodeRejected = true
-            }
-        }
-        try expect(oversizedDecodeRejected, equals: true,
-                   "correction transfer should reject oversized in-memory data before decoding")
-
-        let transferTmpDir = URL(fileURLWithPath: NSTemporaryDirectory())
-        let transferFileManager = FileManager.default
-        let oversized = transferTmpDir
-            .appendingPathComponent("parakey-corrections-oversized-\(UUID().uuidString).json")
-        try Data(repeating: 0x20, count: TranscriptCorrectionsTransfer.maxFileBytes + 1)
-            .write(to: oversized)
-        defer { try? transferFileManager.removeItem(at: oversized) }
-        var oversizedRejected = false
-        do {
-            _ = try TranscriptCorrectionsTransfer.read(from: oversized)
-        } catch let error as TranscriptCorrectionsTransferError {
-            if case .fileTooLarge = error {
-                oversizedRejected = true
-            }
-        }
-        try expect(oversizedRejected, equals: true,
-                   "correction transfer should reject oversized files before decoding")
-
-        let nonFile = transferTmpDir
-            .appendingPathComponent("parakey-corrections-directory-\(UUID().uuidString)")
-        try transferFileManager.createDirectory(at: nonFile, withIntermediateDirectories: false)
-        defer { try? transferFileManager.removeItem(at: nonFile) }
-        var nonFileRejected = false
-        do {
-            _ = try TranscriptCorrectionsTransfer.read(from: nonFile)
-        } catch let error as TranscriptCorrectionsTransferError {
-            if case .notRegularFile = error {
-                nonFileRejected = true
-            }
-        }
-        try expect(nonFileRejected, equals: true,
-                   "correction transfer should reject non-file paths")
-
-        let readTarget = transferTmpDir
-            .appendingPathComponent("parakey-corrections-read-target-\(UUID().uuidString).json")
-        try TranscriptCorrectionsTransfer.write(
-            [TranscriptCorrection(source: "source", replacement: "replacement")],
-            to: readTarget
-        )
-        defer { try? transferFileManager.removeItem(at: readTarget) }
-        let readLink = transferTmpDir
-            .appendingPathComponent("parakey-corrections-read-link-\(UUID().uuidString).json")
-        try transferFileManager.createSymbolicLink(at: readLink, withDestinationURL: readTarget)
-        defer { try? transferFileManager.removeItem(at: readLink) }
-        var symlinkReadRejected = false
-        do {
-            _ = try TranscriptCorrectionsTransfer.read(from: readLink)
-        } catch let error as TranscriptCorrectionsTransferError {
-            if case .notRegularFile = error {
-                symlinkReadRejected = true
-            }
-        }
-        try expect(symlinkReadRejected, equals: true,
-                   "correction transfer should reject reads through leaf symlinks")
-
-        let writeTarget = transferTmpDir
-            .appendingPathComponent("parakey-corrections-write-target-\(UUID().uuidString).json")
-        try Data("target\n".utf8).write(to: writeTarget)
-        defer { try? transferFileManager.removeItem(at: writeTarget) }
-        let writeLink = transferTmpDir
-            .appendingPathComponent("parakey-corrections-write-link-\(UUID().uuidString).json")
-        try transferFileManager.createSymbolicLink(at: writeLink, withDestinationURL: writeTarget)
-        defer { try? transferFileManager.removeItem(at: writeLink) }
-        var symlinkWriteRejected = false
-        do {
-            try TranscriptCorrectionsTransfer.write(
-                [TranscriptCorrection(source: "source", replacement: "replacement")],
-                to: writeLink
-            )
-        } catch let error as TranscriptCorrectionsTransferError {
-            if case .notRegularFile = error {
-                symlinkWriteRejected = true
-            }
-        }
-        try expect(symlinkWriteRejected, equals: true,
-                   "correction transfer should reject writes through leaf symlinks")
-        try expect(
-            String(data: try Data(contentsOf: writeTarget), encoding: .utf8),
-            equals: "target\n",
-            "correction transfer symlink rejection should leave the target untouched"
-        )
-
-        let remoteOnlyChange = mergedTranscriptCorrectionsForSync(
-            base: [TranscriptCorrection(source: "old phrase", replacement: "old")],
-            local: [TranscriptCorrection(source: "old phrase", replacement: "old")],
-            remote: [TranscriptCorrection(source: "old phrase", replacement: "remote")]
-        )
-        try expect(
-            remoteOnlyChange,
-            equals: TranscriptCorrectionSyncMergeResult(
-                corrections: [TranscriptCorrection(source: "old phrase", replacement: "remote")],
-                conflictingSources: []
-            ),
-            "sync merge should accept remote changes when local has not changed"
-        )
-
-        let nonConflictingMerge = mergedTranscriptCorrectionsForSync(
-            base: [
-                TranscriptCorrection(source: "shared", replacement: "old"),
-                TranscriptCorrection(source: "removed locally", replacement: "old")
-            ],
-            local: [TranscriptCorrection(source: "shared", replacement: "local")],
-            remote: [
-                TranscriptCorrection(source: "shared", replacement: "old"),
-                TranscriptCorrection(source: "removed locally", replacement: "old"),
-                TranscriptCorrection(source: "remote only", replacement: "remote")
-            ]
-        )
-        try expect(
-            nonConflictingMerge,
-            equals: TranscriptCorrectionSyncMergeResult(
-                corrections: [
-                    TranscriptCorrection(source: "shared", replacement: "local"),
-                    TranscriptCorrection(source: "remote only", replacement: "remote")
-                ],
-                conflictingSources: []
-            ),
-            "sync merge should combine non-conflicting local edits, local deletes, and remote additions"
-        )
-
-        let conflictingMerge = mergedTranscriptCorrectionsForSync(
-            base: [TranscriptCorrection(source: "same source", replacement: "old")],
-            local: [TranscriptCorrection(source: "same source", replacement: "local")],
-            remote: [TranscriptCorrection(source: "same source", replacement: "remote")]
-        )
-        try expect(
-            conflictingMerge,
-            equals: TranscriptCorrectionSyncMergeResult(corrections: [],
-                                                        conflictingSources: ["same source"]),
-            "sync merge should report same-source edits that changed differently on both sides"
-        )
-
-        let normalizedSyncPath = normalizedCorrectionSyncFilePath(" /tmp/superdictate/../SuperDictate Corrections.superdictate-corrections\n")
-        try expect(
-            normalizedSyncPath,
-            equals: "/tmp/SuperDictate Corrections.superdictate-corrections",
-            "correction sync path normalization should trim and standardize absolute paths"
-        )
-        try expect(
-            normalizedCorrectionSyncFilePath("relative/path.superdictate-corrections"),
-            equals: nil,
-            "correction sync path normalization should reject relative paths"
-        )
-        try expect(
-            normalizedCorrectionSyncFilePath("/tmp/\u{0}superdictate.superdictate-corrections"),
-            equals: nil,
-            "correction sync path normalization should reject NUL bytes"
-        )
-        try expect(
-            normalizedCorrectionSyncFilePath("/" + String(repeating: "x", count: MAX_CORRECTION_SYNC_PATH_BYTES)),
-            equals: nil,
-            "correction sync path normalization should reject oversized paths"
-        )
-
-        // Reject leaf-symlinks at the sync path so an attacker who can
-        // plant a symlink at the persisted sync-file location cannot use
-        // the periodic auto-write to overwrite an unrelated file.
-        let tmpDir = URL(fileURLWithPath: NSTemporaryDirectory())
-        let fm = FileManager.default
-        let nonexistent = tmpDir.appendingPathComponent("parakey-sync-test-missing-\(UUID().uuidString).json")
-        try validateCorrectionSyncPath(nonexistent) // missing files are allowed (first-time write)
-
-        let regular = tmpDir.appendingPathComponent("parakey-sync-test-regular-\(UUID().uuidString).json")
-        try Data("{}".utf8).write(to: regular)
-        defer { try? fm.removeItem(at: regular) }
-        try validateCorrectionSyncPath(regular)
-
-        let target = tmpDir.appendingPathComponent("parakey-sync-test-target-\(UUID().uuidString).json")
-        try Data("{}".utf8).write(to: target)
-        defer { try? fm.removeItem(at: target) }
-        let link = tmpDir.appendingPathComponent("parakey-sync-test-link-\(UUID().uuidString).json")
-        try fm.createSymbolicLink(at: link, withDestinationURL: target)
-        defer { try? fm.removeItem(at: link) }
-        var rejected = false
-        do {
-            try validateCorrectionSyncPath(link)
-        } catch is TranscriptCorrectionsSyncPathError {
-            rejected = true
-        }
-        try expect(rejected, equals: true,
-                   "validateCorrectionSyncPath should reject a leaf symlink")
-        try expect(
-            shouldStopCorrectionSync(afterPathValidationError: TranscriptCorrectionsSyncPathError.isSymbolicLink),
-            equals: true,
-            "unsafe sync paths should stop configured correction sync"
-        )
-        try expect(
-            shouldStopCorrectionSync(afterPathValidationError: NSError(domain: "ParakeyTest", code: 1)),
-            equals: false,
-            "unrelated sync errors should not clear the configured correction sync path"
-        )
-        try expect(
-            correctionSyncFingerprint(for: link),
-            equals: nil,
-            "correction sync fingerprinting should not follow leaf symlinks"
-        )
-
-        let sameSizeA = tmpDir.appendingPathComponent("parakey-sync-fingerprint-a-\(UUID().uuidString).json")
-        let sameSizeB = tmpDir.appendingPathComponent("parakey-sync-fingerprint-b-\(UUID().uuidString).json")
-        try Data("aaaa".utf8).write(to: sameSizeA)
-        try Data("bbbb".utf8).write(to: sameSizeB)
-        defer {
-            try? fm.removeItem(at: sameSizeA)
-            try? fm.removeItem(at: sameSizeB)
-        }
-        let sharedModifiedAt = Date(timeIntervalSince1970: 1_700_000_000)
-        try fm.setAttributes([.modificationDate: sharedModifiedAt], ofItemAtPath: sameSizeA.path)
-        try fm.setAttributes([.modificationDate: sharedModifiedAt], ofItemAtPath: sameSizeB.path)
-
-        guard let fingerprintA = correctionSyncFingerprint(for: sameSizeA),
-              let fingerprintB = correctionSyncFingerprint(for: sameSizeB) else {
-            throw SelfTestFailure.failed("correction sync fingerprint should read regular files")
-        }
-        try expect(
-            fingerprintA.size,
-            equals: fingerprintB.size,
-            "same-size sync files should have equal size metadata in the fingerprint"
-        )
-        try expect(
-            fingerprintA == fingerprintB,
-            equals: false,
-            "correction sync fingerprint should detect content changes even when file size matches"
-        )
-
-        // The full legal correction set must encode within the
-        // transfer cap: 512 entries at the per-field caps is ~2.4 MB
-        // encoded, which silently failed to save under the old 2 MiB
-        // cap. Also pin that it really is over 2 MiB, documenting why
-        // the cap moved to 4 MiB.
-        let worstCaseSet = (0..<MAX_TRANSCRIPT_CORRECTIONS).map { index in
-            TranscriptCorrection(
-                source: String(format: "%06d-", index)
-                    + String(repeating: "s", count: MAX_TRANSCRIPT_CORRECTION_SOURCE_BYTES - 7),
-                replacement: String(repeating: "r", count: MAX_TRANSCRIPT_CORRECTION_REPLACEMENT_BYTES)
-            )
-        }
-        let worstCaseData = try TranscriptCorrectionsTransfer.encode(worstCaseSet)
-        try expect(
-            worstCaseData.count > 2 * 1024 * 1024,
-            equals: true,
-            "worst-case legal correction set should exceed the old 2 MiB cap (why the cap is now larger)"
-        )
-        try expect(
-            worstCaseData.count <= TranscriptCorrectionsTransfer.maxFileBytes,
-            equals: true,
-            "worst-case legal correction set must fit the transfer cap with JSON-overhead headroom"
-        )
-        try expect(
-            try TranscriptCorrectionsTransfer.decode(worstCaseData).count,
-            equals: MAX_TRANSCRIPT_CORRECTIONS,
-            "worst-case legal correction set should round-trip through the transfer cap"
-        )
-
-        // Near the correction cap a merge can briefly exceed it. The
-        // sync baseline must store the same normalized (capped) list
-        // that is written to the file — a raw over-cap baseline makes
-        // the capped-out entry look like a local deletion later.
-        let sharedNearCap = (0..<(MAX_TRANSCRIPT_CORRECTIONS - 1)).map {
-            TranscriptCorrection(source: "shared-\($0)", replacement: "same")
-        }
-        let nearCapMerge = mergedTranscriptCorrectionsForSync(
-            base: sharedNearCap,
-            local: sharedNearCap + [TranscriptCorrection(source: "local-extra", replacement: "local")],
-            remote: sharedNearCap + [TranscriptCorrection(source: "remote-extra", replacement: "remote")]
-        )
-        try expect(
-            nearCapMerge.conflictingSources,
-            equals: [],
-            "near-cap merge with disjoint additions should not conflict"
-        )
-        try expect(
-            nearCapMerge.corrections.count,
-            equals: MAX_TRANSCRIPT_CORRECTIONS + 1,
-            "near-cap merge result can exceed the cap before normalization"
-        )
-        let nearCapNormalized = normalizedTranscriptCorrections(nearCapMerge.corrections)
-        try expect(
-            nearCapNormalized.count,
-            equals: MAX_TRANSCRIPT_CORRECTIONS,
-            "normalizing the near-cap merge result should drop the over-cap entry"
-        )
-        try expect(
-            nearCapNormalized.contains(TranscriptCorrection(source: "local-extra", replacement: "local")),
-            equals: true,
-            "normalization keeps the earlier (local) addition at the cap"
-        )
-        try expect(
-            nearCapNormalized.contains(TranscriptCorrection(source: "remote-extra", replacement: "remote")),
-            equals: false,
-            "the capped-out remote addition is exactly what the baseline must also drop"
-        )
-
-        // Fingerprinting the bytes we wrote must agree with a fresh
-        // disk fingerprint when nobody touched the file in between —
-        // the sync path uses the in-memory form so a provider replacing
-        // the file in the write-to-fingerprint window is still detected
-        // by the next scan.
-        let fingerprintWriteTarget = tmpDir
-            .appendingPathComponent("parakey-sync-written-fingerprint-\(UUID().uuidString).json")
-        let fingerprintWrittenData = try TranscriptCorrectionsTransfer.write(
-            [TranscriptCorrection(source: "fingerprint", replacement: "match")],
-            to: fingerprintWriteTarget
-        )
-        defer { try? fm.removeItem(at: fingerprintWriteTarget) }
-        guard let fingerprintFromDisk = correctionSyncFingerprint(for: fingerprintWriteTarget) else {
-            throw SelfTestFailure.failed("disk fingerprint should be readable right after a write")
-        }
-        try expect(
-            correctionSyncFingerprint(forWrittenData: fingerprintWrittenData, at: fingerprintWriteTarget),
-            equals: fingerprintFromDisk,
-            "fingerprint of written bytes should match the disk fingerprint of an untouched file"
-        )
-
-        // Counted decode keeps the file's pre-normalization entry count
-        // so the import dialog can disclose truncation.
-        let countedOriginal = (0..<(MAX_TRANSCRIPT_CORRECTIONS + 5)).map {
-            TranscriptCorrection(source: "counted-\($0)", replacement: "kept")
-        }
-        let countedEncoder = JSONEncoder()
-        countedEncoder.dateEncodingStrategy = .iso8601
-        let countedDocument = TranscriptCorrectionsDocument(
-            schemaVersion: TranscriptCorrectionsTransfer.schemaVersion,
-            exportedAt: Date(),
-            appVersion: currentBundleVersion(),
-            corrections: countedOriginal
-        )
-        let counted = try TranscriptCorrectionsTransfer.decodeCounted(countedEncoder.encode(countedDocument))
-        try expect(
-            counted.originalCount,
-            equals: MAX_TRANSCRIPT_CORRECTIONS + 5,
-            "counted decode should report the file's pre-normalization entry count"
-        )
-        try expect(
-            counted.corrections.count,
-            equals: MAX_TRANSCRIPT_CORRECTIONS,
-            "counted decode should still normalize down to the correction cap"
-        )
-        let countedLegacy = try TranscriptCorrectionsTransfer.decodeCounted(
-            try JSONEncoder().encode([TranscriptCorrection(source: "  legacy  ", replacement: "entry")])
-        )
-        try expect(
-            countedLegacy,
-            equals: TranscriptCorrectionsTransfer.CountedDecodeResult(
-                corrections: [TranscriptCorrection(source: "legacy", replacement: "entry")],
-                originalCount: 1
-            ),
-            "counted decode should support legacy bare-array files"
-        )
-
-        // Import dialog copy: state the original count when entries
-        // will be dropped, and warn before a cap-overflowing merge.
-        try expect(
-            correctionImportCountText(sourceName: "file.superdictate-corrections",
-                                      originalCount: 3,
-                                      keptCount: 3),
-            equals: "file.superdictate-corrections contains 3 corrections.",
-            "import count text should stay simple when nothing is dropped"
-        )
-        let truncatedImportText = correctionImportCountText(
-            sourceName: "big.superdictate-corrections",
-            originalCount: MAX_TRANSCRIPT_CORRECTIONS + 88,
-            keptCount: MAX_TRANSCRIPT_CORRECTIONS
-        )
-        try expect(
-            truncatedImportText.contains("contains \(MAX_TRANSCRIPT_CORRECTIONS + 88) entries"),
-            equals: true,
-            "import count text should state the file's original entry count when entries are dropped"
-        )
-        try expect(
-            truncatedImportText.contains("first \(MAX_TRANSCRIPT_CORRECTIONS)"),
-            equals: true,
-            "import count text should state how many corrections will actually be kept"
-        )
-        try expect(
-            correctionImportMergeCapWarningText(existingCount: 10, newCount: 10),
-            equals: nil,
-            "merge cap warning should stay silent when the merged set fits"
-        )
-        try expect(
-            correctionImportMergeCapWarningText(existingCount: MAX_TRANSCRIPT_CORRECTIONS,
-                                                newCount: 8)?.contains("8 would be dropped"),
-            equals: true,
-            "merge cap warning should state how many corrections a merge would drop"
-        )
-    }
-
-    private static func testFillerWordRemoval() throws {
-        // Mid-sentence filler with surrounding commas → orphan comma
-        // gets collapsed.
-        let mid = FillerWordRemover.apply(to: "So, um, I was going.")
-        try expect(mid.text, equals: "So, I was going.", "mid-sentence filler should leave a single comma")
-        try expect(mid.removedCount, equals: 1, "mid-sentence filler removal count")
-
-        // Sentence-initial filler with leading-comma cleanup AND
-        // capitalisation restored (the original 'U' was uppercase).
-        let initial = FillerWordRemover.apply(to: "Um, hello.")
-        try expect(initial.text, equals: "Hello.", "sentence-initial filler should re-capitalise the next word")
-        try expect(initial.removedCount, equals: 1, "sentence-initial filler removal count")
-
-        let secondSentence = FillerWordRemover.apply(to: "This is the first sentence. Um this is the second sentence.")
-        try expect(
-            secondSentence.text,
-            equals: "This is the first sentence. This is the second sentence.",
-            "sentence-initial filler after a period should re-capitalise the next word"
-        )
-        try expect(secondSentence.removedCount, equals: 1, "second-sentence filler removal count")
-
-        let secondSentenceWithComma = FillerWordRemover.apply(to: "This is the first sentence. Um, this is the second sentence.")
-        try expect(
-            secondSentenceWithComma.text,
-            equals: "This is the first sentence. This is the second sentence.",
-            "sentence-initial filler after a period should not leave an orphan comma"
-        )
-        try expect(secondSentenceWithComma.removedCount, equals: 1, "second-sentence comma filler removal count")
-
-        let secondSentenceQuestion = FillerWordRemover.apply(to: "This is the first sentence. Um? this is the second sentence.")
-        try expect(
-            secondSentenceQuestion.text,
-            equals: "This is the first sentence. This is the second sentence.",
-            "sentence-initial filler with its own punctuation should take that punctuation with it"
-        )
-        try expect(secondSentenceQuestion.removedCount, equals: 1, "second-sentence question filler removal count")
-
-        let capitalizedMidSentence = FillerWordRemover.apply(to: "This is not a sentence boundary Um this stays lowercase.")
-        try expect(
-            capitalizedMidSentence.text,
-            equals: "This is not a sentence boundary this stays lowercase.",
-            "capitalized fillers away from sentence starts should not force capitalization"
-        )
-        try expect(capitalizedMidSentence.removedCount, equals: 1, "capitalized mid-sentence filler removal count")
-
-        // Bare filler with adjacent punctuation collapses to empty.
-        let bare = FillerWordRemover.apply(to: "Um.")
-        try expect(bare.text, equals: "", "bare filler with trailing punctuation should leave empty string")
-        try expect(bare.removedCount, equals: 1, "bare filler removal count")
-
-        // Filler with no surrounding punctuation just leaves a space
-        // that gets collapsed away.
-        let inline = FillerWordRemover.apply(to: "I'm uh going to the store.")
-        try expect(inline.text, equals: "I'm going to the store.", "inline filler should collapse the leftover whitespace")
-        try expect(inline.removedCount, equals: 1, "inline filler removal count")
-
-        // Compound interjection "uh-huh" must NOT match — the hyphen is
-        // part of the boundary class.
-        let uhHuh = FillerWordRemover.apply(to: "Yeah, uh-huh.")
-        try expect(uhHuh.text, equals: "Yeah, uh-huh.", "uh-huh must not be stripped")
-        try expect(uhHuh.removedCount, equals: 0, "uh-huh removal count")
-
-        // Words that *contain* a filler substring must not match. "her"
-        // contains "er", "sum" contains "um", "exercise" contains "er".
-        let contains = FillerWordRemover.apply(to: "Her sum exercise is harder.")
-        try expect(contains.text, equals: "Her sum exercise is harder.", "filler substrings inside larger words must be preserved")
-        try expect(contains.removedCount, equals: 0, "no removals when fillers are embedded in real words")
-
-        // Multiple fillers in one utterance all get stripped.
-        let multi = FillerWordRemover.apply(to: "Um, ah, I uh think so.")
-        try expect(multi.text, equals: "I think so.", "multiple fillers should all be removed and artifacts cleaned up")
-        try expect(multi.removedCount, equals: 3, "multi-filler removal count")
-
-        // Empty input should be a no-op.
-        let empty = FillerWordRemover.apply(to: "")
-        try expect(empty.text, equals: "", "empty input passes through unchanged")
-        try expect(empty.removedCount, equals: 0, "empty input has zero removals")
-
-        // No fillers present → identical text, zero removals.
-        let clean = FillerWordRemover.apply(to: "Hello world.")
-        try expect(clean.text, equals: "Hello world.", "filler-free input passes through unchanged")
-        try expect(clean.removedCount, equals: 0, "filler-free input has zero removals")
-
-        // Elongated fillers — common in real dictation. The word-
-        // boundary lookahead would have rejected these without the
-        // per-pattern trailing-repeat allowance.
-        let elongatedUm = FillerWordRemover.apply(to: "Ummm, hello.")
-        try expect(elongatedUm.text, equals: "Hello.", "ummm should be stripped like um")
-        try expect(elongatedUm.removedCount, equals: 1, "elongated um removal count")
-
-        let elongatedUh = FillerWordRemover.apply(to: "Uhhh I think so.")
-        try expect(elongatedUh.text, equals: "I think so.", "uhhh should be stripped like uh")
-        try expect(elongatedUh.removedCount, equals: 1, "elongated uh removal count")
-
-        let elongatedAh = FillerWordRemover.apply(to: "Ahhh, that makes sense.")
-        try expect(elongatedAh.text, equals: "That makes sense.", "ahhh should be stripped like ah")
-        try expect(elongatedAh.removedCount, equals: 1, "elongated ah removal count")
-
-        // `hm+` covers both "hm" (single m) and "hmmm" (extended). The
-        // earlier fixed-list "hmm" entry rejected the single-m form.
-        let shortHm = FillerWordRemover.apply(to: "Hm, interesting.")
-        try expect(shortHm.text, equals: "Interesting.", "short hm should be stripped like hmm")
-        try expect(shortHm.removedCount, equals: 1, "short hm removal count")
-
-        // Words containing the new repeat-friendly patterns must still
-        // pass through. "ohm" embeds "hm" but has a leading letter.
-        let embedded = FillerWordRemover.apply(to: "An ohm is a unit.")
-        try expect(embedded.text, equals: "An ohm is a unit.", "ohm must not match hm")
-        try expect(embedded.removedCount, equals: 0, "ohm should produce zero removals")
-
-        // Two consecutive fillers used to leave ",," because the
-        // comma-collapse pass was single-pass/non-overlapping: it
-        // consumed one ", ," pair and the whitespace-before-punctuation
-        // pass then glued the leftover " ," into ",,".
-        let consecutive = FillerWordRemover.apply(to: "So, um, uh, yes.")
-        try expect(consecutive.text, equals: "So, yes.", "consecutive fillers should collapse to a single comma")
-        try expect(consecutive.removedCount, equals: 2, "consecutive filler removal count")
-
-        // Three consecutive fillers exercise runs longer than one
-        // collapse step.
-        let tripleRun = FillerWordRemover.apply(to: "He said, um, uh, er, no.")
-        try expect(tripleRun.text, equals: "He said, no.", "a run of three fillers should collapse to a single comma")
-        try expect(tripleRun.removedCount, equals: 3, "triple filler removal count")
-
-        // Consecutive fillers mid-sentence keep exactly one comma,
-        // matching the single-filler behavior above.
-        let midRun = FillerWordRemover.apply(to: "I think, um, uh, we should go.")
-        try expect(midRun.text, equals: "I think, we should go.", "mid-sentence consecutive fillers should keep one comma")
-        try expect(midRun.removedCount, equals: 2, "mid-sentence consecutive filler removal count")
-
-        // Trailing filler before terminal punctuation used to leave
-        // ",." because no pass cleaned a comma glued onto a period.
-        let trailing = FillerWordRemover.apply(to: "That's all, um.")
-        try expect(trailing.text, equals: "That's all.", "trailing filler should not leave a comma before the period")
-        try expect(trailing.removedCount, equals: 1, "trailing filler removal count")
-
-        let beforeQuestion = FillerWordRemover.apply(to: "Is that right, um?")
-        try expect(beforeQuestion.text, equals: "Is that right?", "filler before a question mark should not leave a comma")
-        try expect(beforeQuestion.removedCount, equals: 1, "filler before question mark removal count")
-
-        let beforeBang = FillerWordRemover.apply(to: "Stop, um!")
-        try expect(beforeBang.text, equals: "Stop!", "filler before an exclamation mark should not leave a comma")
-        try expect(beforeBang.removedCount, equals: 1, "filler before exclamation mark removal count")
-
-        // Sentence-initial filler with its own terminal punctuation:
-        // the leading-strip class must include "?" and "!" or the
-        // orphaned punctuation survives ("Um? What?" → "? What?").
-        let leadingQuestion = FillerWordRemover.apply(to: "Um? What?")
-        try expect(leadingQuestion.text, equals: "What?", "leading filler question should take its punctuation with it")
-        try expect(leadingQuestion.removedCount, equals: 1, "leading filler question removal count")
-
-        let leadingBang = FillerWordRemover.apply(to: "Ah! Careful.")
-        try expect(leadingBang.text, equals: "Careful.", "leading filler exclamation should take its punctuation with it")
-        try expect(leadingBang.removedCount, equals: 1, "leading filler exclamation removal count")
-    }
-
-    private static func testAudioInputDeviceFiltering() throws {
-        let pseudo = AudioInputDevice(id: 1,
-                                      uid: "CADefaultDeviceAggregate-42159-0",
-                                      name: "CADefaultDeviceAggregate-42159-0")
-        let real = AudioInputDevice(id: 2,
-                                    uid: "real-yeti-nano",
-                                    name: "Yeti Nano")
-
-        try expect(
-            isDefaultAggregateAudioInputDevice(pseudo),
-            equals: true,
-            "CoreAudio default aggregate devices should be recognized"
-        )
-        try expect(
-            isDefaultAggregateAudioInputDevice(real),
-            equals: false,
-            "named microphones should remain selectable"
-        )
-        try expect(
-            normalizedInputDevicePreference(" Yeti Nano\n"),
-            equals: "Yeti Nano",
-            "input device preferences should be trimmed before storing"
-        )
-        try expect(
-            normalizedInputDevicePreference(pseudo.uid),
-            equals: nil,
-            "input device preferences should reject CoreAudio default aggregates"
-        )
-        try expect(
-            normalizedInputDevicePreference("real\u{0}device"),
-            equals: nil,
-            "input device preferences should reject NUL bytes"
-        )
-        try expect(
-            normalizedInputDevicePreference(String(repeating: "x", count: MAX_INPUT_DEVICE_PREFERENCE_BYTES + 1)),
-            equals: nil,
-            "input device preferences should reject oversized values"
-        )
-        try expect(
-            audioInputDevice(matching: pseudo.uid, in: [pseudo, real])?.uid,
-            equals: nil,
-            "CoreAudio default aggregate preferences should fall back to system default"
-        )
-        try expect(
-            audioInputDevice(matching: " real-yeti-nano\n", in: [real])?.uid,
-            equals: "real-yeti-nano",
-            "input device preferences should resolve after trimming"
-        )
-        try expect(
-            audioInputDevice(matching: "Yeti Nano", in: [real])?.uid,
-            equals: "real-yeti-nano",
-            "named microphone preferences should still resolve by display name"
-        )
-        let sameName = AudioInputDevice(id: 3,
-                                        uid: "another-yeti-nano",
-                                        name: "Yeti Nano")
-        try expect(
-            audioInputDevice(matching: sameName.uid, in: [real, sameName])?.id,
-            equals: sameName.id,
-            "stable device UIDs should win even when microphone names are duplicated"
-        )
-        try expect(
-            audioInputDevice(matching: "missing-device", in: [real]),
-            equals: nil,
-            "a disconnected saved microphone should resolve to system default"
-        )
-        try expect(
-            shouldRestartAudioInputForSettingsChange(previousPreference: "",
-                                                     nextPreference: real.uid,
-                                                     isCoreRuntimeReady: true),
-            equals: true,
-            "changing microphones should restart only the audio input when runtime is ready"
-        )
-        try expect(
-            shouldRestartAudioInputForSettingsChange(previousPreference: real.uid,
-                                                     nextPreference: real.uid,
-                                                     isCoreRuntimeReady: true),
-            equals: false,
-            "saving the same microphone should not restart audio"
-        )
-        try expect(
-            shouldRestartAudioInputForSettingsChange(previousPreference: "",
-                                                     nextPreference: real.uid,
-                                                     isCoreRuntimeReady: false),
-            equals: false,
-            "startup should pick up a microphone change without an extra audio restart"
-        )
-
-        let suiteName = "com.local.superdictate.self-test.input.\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: suiteName) else {
-            throw SelfTestFailure.failed("could not create isolated input-device defaults")
-        }
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let isolatedSettings = Settings(defaults: defaults)
-        try expect(isolatedSettings.inputDevice, equals: "",
-                   "microphone settings should default to the macOS system input")
-        isolatedSettings.inputDevice = " \(real.uid)\n"
-        try expect(isolatedSettings.inputDevice, equals: real.uid,
-                   "microphone settings should persist a normalized stable UID")
-        isolatedSettings.inputDevice = pseudo.uid
-        try expect(isolatedSettings.inputDevice, equals: "",
-                   "pseudo aggregate inputs should reset the preference to system default")
-    }
-
-    private static func testLiveAudioInputEnumeration() throws {
-        let devices = availableAudioInputDevices()
-        guard !devices.isEmpty else {
-            throw SelfTestFailure.failed("CoreAudio reported no selectable input devices")
-        }
-        var seenUIDs = Set<String>()
-        for device in devices {
-            guard !device.uid.isEmpty, !device.name.isEmpty else {
-                throw SelfTestFailure.failed("CoreAudio returned an input with an empty UID or name")
-            }
-            guard audioDeviceHasInputChannels(device.id) else {
-                throw SelfTestFailure.failed("\(device.name) has no input channels")
-            }
-            guard !isDefaultAggregateAudioInputDevice(device) else {
-                throw SelfTestFailure.failed("a temporary CoreAudio aggregate leaked into the picker")
-            }
-            guard seenUIDs.insert(device.uid).inserted else {
-                throw SelfTestFailure.failed("CoreAudio returned duplicate input UID \(device.uid)")
-            }
-            print("AUDIO INPUT: \(device.name) [\(device.uid)]")
-        }
-
-        let engine = AVAudioEngine()
-        guard let unit = engine.inputNode.audioUnit else {
-            throw SelfTestFailure.failed("AVAudioEngine did not expose an input audio unit")
-        }
-        for device in devices {
-            var deviceID = device.id
-            let status = AudioUnitSetProperty(unit,
-                                              kAudioOutputUnitProperty_CurrentDevice,
-                                              kAudioUnitScope_Global,
-                                              0,
-                                              &deviceID,
-                                              UInt32(MemoryLayout<AudioDeviceID>.size))
-            guard status == noErr else {
-                throw SelfTestFailure.failed(
-                    "CoreAudio rejected \(device.name): \(formattedOSStatus(status))"
-                )
-            }
-            guard currentAudioInputDeviceID(for: unit) == device.id else {
-                throw SelfTestFailure.failed(
-                    "CoreAudio did not make \(device.name) the current input"
-                )
-            }
-            let captureFormat = engine.inputNode.inputFormat(forBus: 0)
-            guard captureFormat.sampleRate > 0, captureFormat.channelCount > 0 else {
-                throw SelfTestFailure.failed(
-                    "\(device.name) did not expose an active capture format"
-                )
-            }
-            if let expectedRate = audioInputDeviceNominalSampleRate(device.id),
-               abs(captureFormat.sampleRate - expectedRate) >= 0.5 {
-                throw SelfTestFailure.failed(
-                    "\(device.name) capture format \(captureFormat.sampleRate) did not match \(expectedRate)"
-                )
-            }
-            print("AUDIO SELECT: \(device.name) OK")
-        }
-    }
-
-    private static func testSpeechModelStartupStatus() throws {
-        try expect(
-            speechModelStartupStatusTitle(.init(fractionCompleted: 0,
-                                                phase: .listing)),
-            equals: "Checking speech model files…",
-            "listing phase should be visible during first-launch model setup"
-        )
-        try expect(
-            speechModelStartupStatusTitle(.init(fractionCompleted: 0.25,
-                                                phase: .downloading(completedFiles: 2, totalFiles: 4))),
-            equals: "Downloading speech model… 50% (2/4)",
-            "download phase should show quantized progress"
-        )
-        try expect(
-            speechModelStartupStatusTitle(.init(fractionCompleted: 0.5,
-                                                phase: .downloading(completedFiles: 0, totalFiles: 0))),
-            equals: "Loading cached speech model…",
-            "cached model load should not pretend to download files"
-        )
-        try expect(
-            speechModelStartupStatusTitle(.init(fractionCompleted: 1,
-                                                phase: .compiling(modelName: "Encoder.mlmodelc"))),
-            equals: "Preparing speech model…",
-            "compile phase should be visible without exposing model internals"
-        )
-        try expect(
-            speechModelStartupProgressValue(.init(fractionCompleted: 0,
-                                                  phase: .listing)),
-            equals: nil,
-            "listing phase should show indeterminate model progress"
-        )
-        try expect(
-            speechModelStartupProgressValue(.init(fractionCompleted: 0.25,
-                                                  phase: .downloading(completedFiles: 2, totalFiles: 4))),
-            equals: 0.5,
-            "download phase should expose normalized model progress"
-        )
-        try expect(
-            speechModelStartupProgressValue(.init(fractionCompleted: 0.5,
-                                                  phase: .downloading(completedFiles: 0, totalFiles: 0))),
-            equals: nil,
-            "cached model load should show indeterminate model progress"
-        )
-        try expect(
-            speechModelStartupProgressValue(.init(fractionCompleted: 1,
-                                                  phase: .compiling(modelName: "Encoder.mlmodelc"))),
-            equals: nil,
-            "compile phase should show indeterminate model progress"
-        )
-        let requiredBytes = speechModelDownloadRequiredBytes(for: .multilingualV3,
-                                                             headroomBytes: 100)
-        try expect(
-            requiredBytes,
-            equals: 700 * 1024 * 1024 + 100,
-            "speech model download requirement should include model estimate plus headroom"
-        )
-        try expect(
-            speechModelDiskSpaceFailureDetail(profile: .multilingualV3,
-                                              availableBytes: requiredBytes - 1,
-                                              requiredBytes: requiredBytes)?.contains("Free some disk space"),
-            equals: true,
-            "low disk-space failures should explain how to recover"
-        )
-        try expect(
-            speechModelDiskSpaceFailureDetail(profile: .multilingualV3,
-                                              availableBytes: requiredBytes,
-                                              requiredBytes: requiredBytes),
-            equals: nil,
-            "disk-space check should pass once required space is available"
-        )
-        try expect(
-            speechModelDiskSpaceFailureDetail(profile: .multilingualV3,
-                                              availableBytes: nil,
-                                              requiredBytes: requiredBytes),
-            equals: nil,
-            "unknown disk-space readings should not block model startup"
-        )
-
-        let tracker = SpeechModelProgressTracker()
-        let listing = tracker.consume(
-            .init(fractionCompleted: 0, phase: .listing),
-            totalBytes: 1_000,
-            now: 10
-        )
-        try expect(listing.phase, equals: "listing",
-                   "progress telemetry should expose the listing phase")
-        try expect(listing.shouldDispatch, equals: true,
-                   "the first listing update should be dispatched")
-
-        let firstDownload = tracker.consume(
-            .init(fractionCompleted: 0.05,
-                  phase: .downloading(completedFiles: 0, totalFiles: 4)),
-            totalBytes: 1_000,
-            now: 11
-        )
-        try expect(firstDownload.metrics?.downloadedBytes, equals: 100,
-                   "byte telemetry should follow FluidAudio's normalized download fraction")
-        try expect(firstDownload.metrics?.bytesPerSecond, equals: nil,
-                   "the first byte sample should establish a baseline without inventing a speed")
-
-        let measuredDownload = tracker.consume(
-            .init(fractionCompleted: 0.10,
-                  phase: .downloading(completedFiles: 0, totalFiles: 4)),
-            totalBytes: 1_000,
-            now: 12
-        )
-        try expect(measuredDownload.metrics?.downloadedBytes, equals: 200,
-                   "downloaded byte telemetry should advance with the model")
-        try expect(measuredDownload.metrics?.bytesPerSecond, equals: 100,
-                   "download speed should be calculated from byte and time deltas")
-        try expect(measuredDownload.metrics?.estimatedSecondsRemaining, equals: 8,
-                   "download ETA should use remaining bytes and measured speed")
-
-        let duplicate = tracker.consume(
-            .init(fractionCompleted: 0.10,
-                  phase: .downloading(completedFiles: 0, totalFiles: 4)),
-            totalBytes: 1_000,
-            now: 12.1
-        )
-        try expect(duplicate.shouldDispatch, equals: false,
-                   "duplicate chunk callbacks should not flood the main actor")
-
-        let cached = SpeechModelProgressTracker().consume(
-            .init(fractionCompleted: 0.5,
-                  phase: .downloading(completedFiles: 0, totalFiles: 0)),
-            totalBytes: 1_000,
-            now: 20
-        )
-        try expect(cached.metrics, equals: nil,
-                   "cached model loading should not display fake transfer telemetry")
-        try expect(
-            speechModelNetworkProgressIsStalled(phase: "listing",
-                                                progressUpdatedAt: 10,
-                                                now: 22),
-            equals: true,
-            "a listing request without progress should surface network recovery guidance"
-        )
-        try expect(
-            speechModelNetworkProgressIsStalled(phase: "preparing",
-                                                progressUpdatedAt: 10,
-                                                now: 100),
-            equals: false,
-            "CoreML preparation should never be mislabeled as a stalled download"
-        )
-
-        let legacyState = try JSONDecoder().decode(
-            AgentRuntimeState.self,
-            from: Data("""
-            {
-              "status": "starting",
-              "detail": "Checking speech model files…",
-              "updatedAt": 10,
-              "pid": 42,
-              "isReady": false,
-              "isRecording": false,
-              "isTranscribing": false,
-              "speechModelReady": false,
-              "missingPermissions": [],
-              "hotkeyName": "Right Command",
-              "triggerMode": "toggle"
-            }
-            """.utf8)
-        )
-        try expect(legacyState.modelDownloadPhase, equals: nil,
-                   "runtime state from older app versions should decode without telemetry fields")
-    }
-
-    private static func testModelIntegrity() throws {
-        try testSpeechModelCachePathSafety()
-
-        let fm = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-model-integrity-\(UUID().uuidString)",
-                                    isDirectory: true)
-        let modelDir = root.appendingPathComponent("Toy.mlmodelc", isDirectory: true)
-        try fm.createDirectory(at: modelDir, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: root) }
-
-        let modelFile = modelDir.appendingPathComponent("model.mil")
-        try Data("hello".utf8).write(to: modelFile)
-        let expected = [
-            ModelFileDigest(
-                relativePath: "Toy.mlmodelc/model.mil",
-                sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
-            )
-        ]
-        try ModelIntegrity.verifyFiles(root: root,
-                                       expectedFiles: expected,
-                                       strictDirectories: ["Toy.mlmodelc"])
-
-        var rejectedMismatch = false
-        do {
-            try ModelIntegrity.verifyFiles(
-                root: root,
-                expectedFiles: [
-                    ModelFileDigest(relativePath: "Toy.mlmodelc/model.mil",
-                                    sha256: String(repeating: "0", count: 64))
-                ],
-                strictDirectories: ["Toy.mlmodelc"]
-            )
-        } catch is ModelIntegrityError {
-            rejectedMismatch = true
-        }
-        try expect(rejectedMismatch, equals: true,
-                   "model integrity should reject digest mismatches")
-
-        try Data("extra".utf8).write(to: modelDir.appendingPathComponent("extra.bin"))
-        var rejectedUnexpectedFile = false
-        do {
-            try ModelIntegrity.verifyFiles(root: root,
-                                           expectedFiles: expected,
-                                           strictDirectories: ["Toy.mlmodelc"])
-        } catch is ModelIntegrityError {
-            rejectedUnexpectedFile = true
-        }
-        try expect(rejectedUnexpectedFile, equals: true,
-                   "model integrity should reject unpinned files in strict model bundles")
-
-        try fm.removeItem(at: modelDir.appendingPathComponent("extra.bin"))
-        try fm.createDirectory(at: modelDir.appendingPathComponent("empty-extra", isDirectory: true),
-                               withIntermediateDirectories: true)
-        var rejectedUnexpectedDirectory = false
-        do {
-            try ModelIntegrity.verifyFiles(root: root,
-                                           expectedFiles: expected,
-                                           strictDirectories: ["Toy.mlmodelc"])
-        } catch is ModelIntegrityError {
-            rejectedUnexpectedDirectory = true
-        }
-        try expect(rejectedUnexpectedDirectory, equals: true,
-                   "model integrity should reject unpinned directories in strict model bundles")
-
-        var rejectedBadDigest = false
-        do {
-            try ModelIntegrity.verifyFiles(
-                root: root,
-                expectedFiles: [
-                    ModelFileDigest(relativePath: "Toy.mlmodelc/model.mil",
-                                    sha256: "not-a-sha256")
-                ],
-                strictDirectories: ["Toy.mlmodelc"]
-            )
-        } catch is ModelIntegrityError {
-            rejectedBadDigest = true
-        }
-        try expect(rejectedBadDigest, equals: true,
-                   "model integrity should reject malformed manifest digests")
-
-        var rejectedDotSegment = false
-        do {
-            try ModelIntegrity.verifyFiles(
-                root: root,
-                expectedFiles: [
-                    ModelFileDigest(
-                        relativePath: "Toy.mlmodelc/./model.mil",
-                        sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
-                    )
-                ],
-                strictDirectories: ["Toy.mlmodelc"]
-            )
-        } catch is ModelIntegrityError {
-            rejectedDotSegment = true
-        }
-        try expect(rejectedDotSegment, equals: true,
-                   "model integrity should reject dot path segments")
-
-        let symlinkedModelFile = modelDir.appendingPathComponent("model-link.mil")
-        try fm.createSymbolicLink(at: symlinkedModelFile, withDestinationURL: modelFile)
-        var rejectedSymlinkHashRead = false
-        do {
-            _ = try ModelIntegrity.sha256Hex(of: symlinkedModelFile,
-                                             relativePath: "Toy.mlmodelc/model-link.mil")
-        } catch is ModelIntegrityError {
-            rejectedSymlinkHashRead = true
-        }
-        try expect(rejectedSymlinkHashRead, equals: true,
-                   "model integrity hashing should not follow leaf symlinks")
-
-        let localParakeetV3Cache = speechModelCacheDirectory(for: .multilingualV3)
-        if fm.fileExists(atPath: localParakeetV3Cache.path) {
-            try ModelIntegrity.verifyParakeetV3Model(at: localParakeetV3Cache)
-        }
-    }
-
-    private static func testSpeechModelCachePathSafety() throws {
-        let fm = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-cache-safety-\(UUID().uuidString)", isDirectory: true)
-        let support = root.appendingPathComponent("FluidAudio", isDirectory: true)
-        let cache = support.appendingPathComponent("Models/parakeet-v3", isDirectory: true)
-        try fm.createDirectory(at: cache, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: root) }
-
-        try expect(
-            isSafeSpeechModelCacheDirectory(
-                cache,
-                fluidAudioSupportDirectory: support
-            ),
-            equals: true,
-            "speech model cache reset should allow nested FluidAudio cache paths"
-        )
-        try expect(
-            isExistingSpeechModelCacheDirectorySafeForRemoval(cache,
-                                                             fluidAudioSupportDirectory: support),
-            equals: true,
-            "speech model cache reset should allow existing plain cache directories"
-        )
-        try expect(
-            isSafeSpeechModelCacheDirectory(support, fluidAudioSupportDirectory: support),
-            equals: false,
-            "speech model cache reset should not remove the FluidAudio support root"
-        )
-        try expect(
-            isSafeSpeechModelCacheDirectory(
-                support.deletingLastPathComponent().appendingPathComponent("FluidAudioBackup/parakeet-v3", isDirectory: true),
-                fluidAudioSupportDirectory: support
-            ),
-            equals: false,
-            "speech model cache reset should reject sibling support directories"
-        )
-        try expect(
-            isSafeSpeechModelCacheDirectory(
-                support.appendingPathComponent("../Outside/parakeet-v3", isDirectory: true),
-                fluidAudioSupportDirectory: support
-            ),
-            equals: false,
-            "speech model cache reset should reject paths that normalize outside FluidAudio support"
-        )
-
-        let outside = root.appendingPathComponent("Outside", isDirectory: true)
-        let outsideCache = outside.appendingPathComponent("parakeet-v3", isDirectory: true)
-        try fm.createDirectory(at: outsideCache, withIntermediateDirectories: true)
-
-        let leafLink = support.appendingPathComponent("Models/link-cache", isDirectory: true)
-        try fm.createSymbolicLink(at: leafLink, withDestinationURL: outsideCache)
-        try expect(
-            isSafeSpeechModelCacheDirectory(leafLink, fluidAudioSupportDirectory: support),
-            equals: true,
-            "speech model cache reset path check should remain string-only"
-        )
-        try expect(
-            isExistingSpeechModelCacheDirectorySafeForRemoval(leafLink,
-                                                             fluidAudioSupportDirectory: support),
-            equals: false,
-            "speech model cache reset should reject leaf symlink directories before deletion"
-        )
-
-        let linkedParent = support.appendingPathComponent("LinkedModels", isDirectory: true)
-        try fm.createSymbolicLink(at: linkedParent, withDestinationURL: outside)
-        try expect(
-            isExistingSpeechModelCacheDirectorySafeForRemoval(
-                linkedParent.appendingPathComponent("parakeet-v3", isDirectory: true),
-                fluidAudioSupportDirectory: support
-            ),
-            equals: false,
-            "speech model cache reset should reject symlinked parent directories before deletion"
-        )
-        try expect(
-            isSafeSpeechModelCacheDirectory(speechModelCacheDirectory(for: .multilingualV3)),
-            equals: true,
-            "FluidAudio v3 cache path should remain inside FluidAudio Application Support"
-        )
-        let defaultV3Cache = speechModelCacheDirectory(for: .multilingualV3)
-        if fm.fileExists(atPath: defaultV3Cache.path) {
-            try expect(
-                isExistingSpeechModelCacheDirectorySafeForRemoval(defaultV3Cache),
-                equals: true,
-                "existing FluidAudio v3 cache path should remain removable"
-            )
-        }
-    }
-
-    private static func testUpdate() throws {
-        try testUpdateCheckParsing()
-        try testUpdateCheckState()
-        try testDirectUpdateManifest()
-        try testUpdateHelperScript()
-        try testDirectUpdateReplacement()
-        try testUpdateProgressState()
-    }
-
-    private static func testDirectUpdateManifest() throws {
-        let checksum = String(repeating: "a", count: 64)
-        let validData = Data("{\"version\":\"9.8.7\",\"sha256\":\"\(checksum)\"}".utf8)
-        try expect(
-            try SuperDictateUpdateInstaller.parseManifest(validData,
-                                                           expectedVersion: "9.8.7"),
-            equals: SuperDictateUpdateManifest(version: "9.8.7", sha256: checksum),
-            "direct update manifest should parse a canonical version and SHA-256"
-        )
-
-        do {
-            _ = try SuperDictateUpdateInstaller.parseManifest(validData,
-                                                               expectedVersion: "9.8.8")
-            throw SelfTestFailure.failed("direct update manifest should reject version disagreement")
-        } catch let error as SuperDictateUpdateInstallerError {
-            try expect(error,
-                       equals: .manifestVersionMismatch(expected: "9.8.8", actual: "9.8.7"),
-                       "direct update manifest should describe version disagreement")
-        }
-
-        let invalidChecksum = Data(#"{"version":"9.8.7","sha256":"not-a-checksum"}"#.utf8)
-        do {
-            _ = try SuperDictateUpdateInstaller.parseManifest(invalidChecksum,
-                                                               expectedVersion: "9.8.7")
-            throw SelfTestFailure.failed("direct update manifest should reject malformed checksums")
-        } catch let error as SuperDictateUpdateInstallerError {
-            try expect(error, equals: .invalidManifest,
-                       "direct update manifest should reject malformed checksums")
-        }
-    }
-
-    private static func testUpdateCheckParsing() throws {
-        let ok = HTTPURLResponse(url: GITHUB_LATEST_RELEASE_URL,
-                                 statusCode: 200,
-                                 httpVersion: nil,
-                                 headerFields: nil)!
-        let notFound = HTTPURLResponse(url: GITHUB_LATEST_RELEASE_URL,
-                                       statusCode: 404,
-                                       httpVersion: nil,
-                                       headerFields: nil)!
-        let releaseData = Data(
-            #"{"tag_name":"v9.8.7","body":"Notes","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7"}"#.utf8
-        )
-
-        try expect(
-            UpdateCheck.parseLatest(data: releaseData, response: ok),
-            equals: .success(GitHubRelease(tagName: "v9.8.7",
-                                           version: "9.8.7",
-                                           body: "Notes",
-                                           htmlURL: "https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7")),
-            "update parsing should decode typed GitHub release payloads"
-        )
-        try expect(
-            UpdateCheck.parseLatest(data: releaseData, response: notFound),
-            equals: .failure(.httpStatus(404)),
-            "update parsing should reject non-2xx HTTP responses with the status code"
-        )
-        let rateLimited = HTTPURLResponse(url: GITHUB_LATEST_RELEASE_URL,
-                                          statusCode: 403,
-                                          httpVersion: nil,
-                                          headerFields: nil)!
-        try expect(
-            UpdateCheck.parseLatest(data: releaseData, response: rateLimited),
-            equals: .failure(.httpStatus(403)),
-            "update parsing should surface HTTP 403 distinctly (GitHub rate limiting)"
-        )
-        let oversizedReleaseData = Data(
-            """
-            {"tag_name":"v9.8.7","body":"\(String(repeating: "x", count: UpdateCheck.maxReleaseResponseBytes))","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7"}
-            """.utf8
-        )
-        try expect(
-            oversizedReleaseData.count > UpdateCheck.maxReleaseResponseBytes,
-            equals: true,
-            "oversized release response fixture should exceed the parser limit"
-        )
-        try expect(
-            UpdateCheck.parseLatest(data: oversizedReleaseData, response: ok),
-            equals: .failure(.unexpectedResponse),
-            "update parsing should reject oversized release responses before decoding"
-        )
-        try expect(
-            UpdateCheck.parseLatest(data: Data(#"{"tag_name":""}"#.utf8), response: ok),
-            equals: .failure(.unexpectedResponse),
-            "update parsing should reject empty release tags"
-        )
-        try expect(
-            UpdateCheck.parseLatest(data: Data(#"{"tag_name":"latest"}"#.utf8), response: ok),
-            equals: .failure(.unexpectedResponse),
-            "update parsing should reject non-version release tags"
-        )
-        try expect(
-            UpdateCheck.parseLatest(data: Data(#"{"tag_name":"v01.2.3"}"#.utf8), response: ok),
-            equals: .failure(.unexpectedResponse),
-            "update parsing should reject non-normal semver tags"
-        )
-        try expect(
-            UpdateCheck.parseLatest(
-                data: Data(#"{"tag_name":"v999999999999999999999999.2.3"}"#.utf8),
-                response: ok
-            ),
-            equals: .failure(.unexpectedResponse),
-            "update parsing should reject oversized numeric version parts"
-        )
-        try expect(
-            parseSemver("999999999999999999999999.2.3"),
-            equals: [Int.max, 2, 3],
-            "tolerant version parsing should not overflow on oversized components"
-        )
-        try expect(
-            normalizedSkippedUpdateVersions([
-                "junk",
-                "v1.2.3",
-                "1.2.3",
-                " V2.0.0\n",
-                "01.2.3",
-                "3.999999999999999999999999.0"
-            ]),
-            equals: ["1.2.3", "2.0.0"],
-            "skipped update versions should normalize valid versions and discard malformed entries"
-        )
-        try expect(
-            normalizedSkippedUpdateVersions((0..<(MAX_SKIPPED_UPDATE_VERSIONS + 3)).map { "1.0.\($0)" }),
-            equals: (3..<(MAX_SKIPPED_UPDATE_VERSIONS + 3)).map { "1.0.\($0)" },
-            "skipped update versions should keep only the most recent bounded entries"
-        )
-        try expect(
-            UpdateCheck.parseLatest(
-                data: Data(#"{"tag_name":"9.8.7","html_url":"https://example.test/v9.8.7"}"#.utf8),
-                response: ok
-            ),
-            equals: .success(GitHubRelease(tagName: "9.8.7",
-                                           version: "9.8.7",
-                                           body: "",
-                                           htmlURL: GITHUB_RELEASES_PAGE.absoluteString)),
-            "update parsing should fall back from non-project release URLs"
-        )
-        try expect(
-            UpdateCheck.parseLatest(
-                data: Data(#"{"tag_name":"v9.8.7","html_url":"https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.8"}"#.utf8),
-                response: ok
-            ),
-            equals: .success(GitHubRelease(tagName: "v9.8.7",
-                                           version: "9.8.7",
-                                           body: "",
-                                           htmlURL: GITHUB_RELEASES_PAGE.absoluteString)),
-            "update parsing should fall back when release URL tag does not match the payload tag"
-        )
-        // Manual-check alert copy: each failure kind gets its own
-        // explanation instead of blaming the network for everything.
-        try expect(
-            manualUpdateCheckFailureText(.network).contains("internet connection"),
-            equals: true,
-            "network failure text should point at connectivity"
-        )
-        try expect(
-            manualUpdateCheckFailureText(.httpStatus(403)).contains("rate limiting"),
-            equals: true,
-            "HTTP 403 failure text should mention rate limiting"
-        )
-        try expect(
-            manualUpdateCheckFailureText(.httpStatus(500)).contains("HTTP 500"),
-            equals: true,
-            "HTTP failure text should include the status code"
-        )
-        try expect(
-            manualUpdateCheckFailureText(.unexpectedResponse).contains("couldn't read"),
-            equals: true,
-            "unexpected-response failure text should describe an unreadable response"
-        )
-        try expect(
-            UpdateCheck.normalizedReleaseVersion(from: " V1.2.3\n"),
-            equals: "1.2.3",
-            "release version normalization should allow one leading v"
-        )
-        try expect(
-            normalizedStoredAppVersion(" v2.3.4\n"),
-            equals: "2.3.4",
-            "stored app version normalization should canonicalize release-style versions"
-        )
-        try expect(
-            normalizedStoredAppVersion("2.3"),
-            equals: nil,
-            "stored app version normalization should reject incomplete versions"
-        )
-        try expect(
-            normalizedStoredAppVersion("v999999999999999999999999.2.3"),
-            equals: nil,
-            "stored app version normalization should reject oversized numeric components"
-        )
-        try expect(
-            UpdateCheck.sanitizedReleaseURL("http://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7",
-                                            expectedTag: "v9.8.7"),
-            equals: GITHUB_RELEASES_PAGE.absoluteString,
-            "release URL sanitizing should require HTTPS"
-        )
-        try expect(
-            UpdateCheck.sanitizedReleaseURL("https://user@github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7",
-                                            expectedTag: "v9.8.7"),
-            equals: GITHUB_RELEASES_PAGE.absoluteString,
-            "release URL sanitizing should reject userinfo"
-        )
-        try expect(
-            UpdateCheck.sanitizedReleaseURL("https://github.com/Vasya2004/VoiceSwap/releases/tag/v9.8.7?download=1",
-                                            expectedTag: "v9.8.7"),
-            equals: GITHUB_RELEASES_PAGE.absoluteString,
-            "release URL sanitizing should reject query strings"
-        )
-    }
-
-    private static func testUpdateCheckState() throws {
-        let release = GitHubRelease(tagName: "v1.2.4",
-                                    version: "1.2.4",
-                                    body: "",
-                                    htmlURL: GITHUB_RELEASES_PAGE.absoluteString)
-        try expect(
-            updateCheckResult(for: nil, currentVersion: "1.2.3", skippedVersions: []),
-            equals: .failed,
-            "nil update checks should be recorded as failed or unavailable"
-        )
-        try expect(
-            updateCheckResult(for: release, currentVersion: "1.2.4", skippedVersions: []),
-            equals: .upToDate,
-            "equal release versions should be recorded as up to date"
-        )
-        try expect(
-            updateCheckResult(for: release, currentVersion: "1.2.3", skippedVersions: []),
-            equals: .available,
-            "newer releases should be recorded as available"
-        )
-        try expect(
-            updateCheckResult(for: release, currentVersion: "1.2.3", skippedVersions: ["1.2.4"]),
-            equals: .skipped,
-            "skipped newer releases should be recorded distinctly"
-        )
-
-        let now = Date(timeIntervalSince1970: 1_000)
-        try expect(
-            shouldSuppressUpdateForReminder(version: "1.2.4",
-                                            reminderVersion: "1.2.4",
-                                            reminderUntil: now.addingTimeInterval(60),
-                                            now: now),
-            equals: true,
-            "active reminders should suppress the matching update version"
-        )
-        try expect(
-            shouldSuppressUpdateForReminder(version: "1.2.5",
-                                            reminderVersion: "1.2.4",
-                                            reminderUntil: now.addingTimeInterval(60),
-                                            now: now),
-            equals: false,
-            "reminders should not suppress newer versions"
-        )
-        try expect(
-            shouldSuppressUpdateForReminder(version: "1.2.4",
-                                            reminderVersion: "1.2.4",
-                                            reminderUntil: now.addingTimeInterval(-1),
-                                            now: now),
-            equals: false,
-            "expired reminders should not suppress updates"
-        )
-        try expect(
-            updateCheckDiagnosticText(checkedAt: nil,
-                                      source: nil,
-                                      result: nil,
-                                      releaseVersion: ""),
-            equals: "never",
-            "missing update-check metadata should render as never"
-        )
-
-        // Stale-pause clearing: equal version (expired pause about to
-        // be re-shown) and a newer superseding release both clear; an
-        // older fetched version or no pause leaves things alone.
-        try expect(
-            shouldClearUpdateReminderPause(fetchedVersion: "1.2.4", pausedVersion: "1.2.4"),
-            equals: true,
-            "a fetched release matching the paused version should clear the pause"
-        )
-        try expect(
-            shouldClearUpdateReminderPause(fetchedVersion: "1.2.5", pausedVersion: "1.2.4"),
-            equals: true,
-            "a newer fetched release should clear a stale pause for the superseded version"
-        )
-        try expect(
-            shouldClearUpdateReminderPause(fetchedVersion: "1.2.3", pausedVersion: "1.2.4"),
-            equals: false,
-            "an older fetched release should keep the existing pause"
-        )
-        try expect(
-            shouldClearUpdateReminderPause(fetchedVersion: "1.2.4", pausedVersion: nil),
-            equals: false,
-            "no pause means nothing to clear"
-        )
-
-        // Persisted pause expiry validation, mirroring the
-        // lastUpdateCheck* pattern: corrupt → nil, in-range round-trip,
-        // cleared/missing → nil.
-        let pauseNow = Date(timeIntervalSince1970: 2_000)
-        let validPauseUntil = pauseNow.addingTimeInterval(UPDATE_REMIND_LATER_SECONDS)
-        try expect(
-            normalizedUpdateReminderPauseExpiry(storedValue: validPauseUntil, now: pauseNow),
-            equals: validPauseUntil,
-            "a stored pause expiry inside the pause window should round-trip"
-        )
-        try expect(
-            normalizedUpdateReminderPauseExpiry(storedValue: pauseNow.addingTimeInterval(-60), now: pauseNow),
-            equals: pauseNow.addingTimeInterval(-60),
-            "an already-expired stored pause expiry is legitimate state and should round-trip"
-        )
-        try expect(
-            normalizedUpdateReminderPauseExpiry(storedValue: "not a date", now: pauseNow),
-            equals: nil,
-            "a corrupt (non-Date) stored pause expiry should degrade to nil"
-        )
-        try expect(
-            normalizedUpdateReminderPauseExpiry(storedValue: nil, now: pauseNow),
-            equals: nil,
-            "a cleared pause expiry should read back as nil"
-        )
-        try expect(
-            normalizedUpdateReminderPauseExpiry(
-                storedValue: pauseNow.addingTimeInterval(UPDATE_REMIND_LATER_SECONDS + 60),
-                now: pauseNow
-            ),
-            equals: nil,
-            "an out-of-range future pause expiry should degrade to nil instead of suppressing indefinitely"
-        )
-        // The paused-version half persists through the same validated
-        // app-version normalization tested in testUpdateCheckParsing
-        // (normalizedStoredAppVersion: corrupt → nil, round-trip).
-
-        try expect(
-            UpdateCheckSource(rawValue: "settings_toggle"),
-            equals: .settingsToggle,
-            "settings-toggle update checks should round-trip through their persisted raw value"
-        )
-        try expect(
-            UpdateCheckSource.settingsToggle.diagnosticLabel,
-            equals: "settings toggle",
-            "settings-toggle update checks should label themselves distinctly in diagnostics"
-        )
-    }
-
-    private static func testUpdateHelperScript() throws {
-        try expect(
-            shellSingleQuoted("a'b"),
-            equals: "'a'\"'\"'b'",
-            "shell quoting should preserve embedded single quotes"
-        )
-        try expect(
-            (UPDATE_HELPER_LOG_PATH as NSString).deletingLastPathComponent,
-            equals: (NSHomeDirectory() as NSString).appendingPathComponent("Library/Logs"),
-            "update helper log should live in the user's log directory"
-        )
-        let updateEnv = updateProcessEnvironment(current: [
-            "LANG": "C\nbad",
-            "USER": "parakey-user",
-            "LOGNAME": "parakey-logname",
-            "__CF_USER_TEXT_ENCODING": "0x1F5:0x0:0x0",
-            "BASH_ENV": "/tmp/pwn.sh",
-            "ENV": "/tmp/pwn.sh",
-            "SHELLOPTS": "xtrace",
-            "RUBYOPT": "-r/tmp/pwn.rb",
-            "HOMEBREW_BOTTLE_DOMAIN": "https://example.test",
-        ])
-        try expect(updateEnv["HOME"], equals: Optional(NSHomeDirectory()),
-                   "update environment should set HOME explicitly")
-        try expect(updateEnv["PATH"],
-                   equals: Optional("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"),
-                   "update environment should use a deterministic PATH")
-        try expect(updateEnv["LANG"], equals: Optional("en_US.UTF-8"),
-                   "update environment should reject unsafe locale values")
-        try expect(updateEnv["USER"], equals: Optional("parakey-user"),
-                   "update environment should preserve a safe USER value")
-        try expect(updateEnv["LOGNAME"], equals: Optional("parakey-logname"),
-                   "update environment should preserve a safe LOGNAME value")
-        for key in ["BASH_ENV", "ENV", "SHELLOPTS", "RUBYOPT", "HOMEBREW_BOTTLE_DOMAIN"] {
-            try expect(updateEnv[key], equals: String?.none,
-                       "update environment should not inherit \(key)")
-        }
-        let systemEnv = systemToolProcessEnvironment(current: [
-            "LANG": "en_GB.UTF-8",
-            "USER": "parakey-user",
-            "BASH_ENV": "/tmp/pwn.sh",
-            "DYLD_INSERT_LIBRARIES": "/tmp/pwn.dylib",
-            "PATH": "/tmp/bin",
-        ])
-        try expect(systemEnv["PATH"], equals: Optional("/usr/bin:/bin:/usr/sbin:/sbin"),
-                   "system tool environment should not include Homebrew or inherited PATH entries")
-        try expect(systemEnv["LANG"], equals: Optional("en_GB.UTF-8"),
-                   "system tool environment should preserve a safe locale")
-        try expect(systemEnv["USER"], equals: Optional("parakey-user"),
-                   "system tool environment should preserve a safe USER value")
-        for key in ["BASH_ENV", "DYLD_INSERT_LIBRARIES"] {
-            try expect(systemEnv[key], equals: String?.none,
-                       "system tool environment should not inherit \(key)")
-        }
-
-        let script = updateHelperScript(pid: 123,
-                                        brewPath: "/opt/homebrew/bin/brew",
-                                        targetVersion: "9.8.7",
-                                        statePath: "/tmp/parakey-update.state",
-                                        appPath: "/Applications/SuperDictate.app",
-                                        releasesPageURL: "https://example.test/releases")
-        for fragment in [
-            "umask 077",
-            "TARGET_VERSION='9.8.7'",
-            "STATE_PATH='/tmp/parakey-update.state'",
-            "PARAKEY_PID=123",
-            "SCRIPT_PATH=\"$0\"",
-            "trap cleanup EXIT",
-            "/bin/rm -f \"$SCRIPT_PATH\"",
-            "printf '[%s] %s\\n' \"$(timestamp)\" \"$*\"",
-            "printf '%s\\t%s\\n' \"$phase\" \"$message\" >\"$tmp\"",
-            "CASK_TAP='shlgd/superdictate'",
-            "CASK_TOKEN='shlgd/superdictate/superdictate'",
-            "CASK_INSTALLED_TOKEN='parakey'",
-            "PlistBuddy -c \"Print :CFBundleShortVersionString\"",
-            "version_at_least \"$installed\" \"$TARGET_VERSION\"",
-            "state \"preparing\" \"Preparing Homebrew for Parakey v$TARGET_VERSION...\"",
-            "state \"downloading\" \"Downloading Parakey v$TARGET_VERSION...\"",
-            "state \"installing\" \"Installing Parakey v$TARGET_VERSION...\"",
-            "run_brew tap \"$CASK_TAP\"",
-            "run_brew update --force",
-            "run_brew fetch --cask --force \"$CASK_TOKEN\"",
-            "run_brew upgrade --cask --force --appdir=\"$APP_DIR\" \"$CASK_TOKEN\"",
-            "run_brew reinstall --cask --force --appdir=\"$APP_DIR\" \"$CASK_TOKEN\"",
-            "installed_target_version",
-            "sleep 2",
-            "state \"complete\" \"Parakey v$TARGET_VERSION is installed.\"",
-            "/usr/bin/open \"$APP_PATH\""
-        ] {
-            guard script.contains(fragment) else {
-                throw SelfTestFailure.failed("update helper script missing fragment: \(fragment)")
-            }
-        }
-        for fragment in ["LOG=", ">>\"$LOG\"", ">\"$LOG\"", "prepare_log"] {
-            guard !script.contains(fragment) else {
-                throw SelfTestFailure.failed("update helper script should not reopen a log path: \(fragment)")
-            }
-        }
-
-        let directScript = superDictateDirectUpdateHelperScript(
-            pid: 123,
-            targetVersion: "9.8.7",
-            statePath: "/tmp/superdictate-update.state",
-            stagedAppPath: "/tmp/work/release/VoiceSwap.app",
-            workDirectory: "/tmp/work",
-            backupAppPath: "/Applications/.VoiceSwap-update-backup-test.app",
-            appPath: "/Applications/VoiceSwap.app",
-            language: .english
-        )
-        for fragment in [
-            "PANEL_PID=123",
-            "TARGET_VERSION='9.8.7'",
-            "STAGED_APP='/tmp/work/release/VoiceSwap.app'",
-            "BACKUP_APP='/Applications/.VoiceSwap-update-backup-test.app'",
-            "wait_for_panel_exit || rollback",
-            "launchctl bootout \"$SERVICE\"",
-            "/bin/mv \"$APP_PATH\" \"$BACKUP_APP\" || rollback",
-            "/usr/bin/ditto \"$STAGED_APP\" \"$APP_PATH\" || rollback",
-            "/usr/bin/codesign --verify --deep --strict \"$APP_PATH\"",
-            "if [ -d \"$BACKUP_APP\" ]; then",
-            "state \"complete\" 'VoiceSwap v9.8.7 is installed.'",
-        ] {
-            guard directScript.contains(fragment) else {
-                throw SelfTestFailure.failed("direct update helper missing fragment: \(fragment)")
-            }
-        }
-        let directTmp = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("superdictate-direct-update-self-test-\(UUID().uuidString).sh")
-        try directScript.write(to: directTmp, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: directTmp) }
-        let directProc = Process()
-        directProc.executableURL = URL(fileURLWithPath: "/bin/bash")
-        directProc.arguments = ["-n", directTmp.path]
-        directProc.standardOutput = Pipe()
-        directProc.standardError = Pipe()
-        try directProc.run()
-        directProc.waitUntilExit()
-        guard directProc.terminationStatus == 0 else {
-            throw SelfTestFailure.failed("direct update helper script should pass bash -n")
-        }
-
-        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-update-self-test-\(UUID().uuidString).sh")
-        try script.write(to: tmp, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: tmp) }
-
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/bin/bash")
-        proc.arguments = ["-n", tmp.path]
-        proc.standardOutput = Pipe()
-        proc.standardError = Pipe()
-        try proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else {
-            throw SelfTestFailure.failed("update helper script should pass bash -n")
-        }
-
-        let fm = FileManager.default
-        let helperRoot = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-update-helper-test-\(UUID().uuidString)", isDirectory: true)
-        try fm.createDirectory(at: helperRoot, withIntermediateDirectories: false)
-        defer { try? fm.removeItem(at: helperRoot) }
-
-        let helperPath = try writePrivateUpdateHelperScript(script,
-                                                            directory: helperRoot.path,
-                                                            fileName: "helper.sh")
-        var createdStat = stat()
-        guard lstat(helperPath, &createdStat) == 0 else {
-            throw SelfTestFailure.failed("update helper script file should exist")
-        }
-        try expect((createdStat.st_mode & S_IFMT) == S_IFREG,
-                   equals: true,
-                   "update helper script should be a regular file")
-        try expect(Int(createdStat.st_mode & mode_t(0o777)),
-                   equals: 0o600,
-                   "update helper script should be private to the current user")
-        try expect(Int(createdStat.st_nlink),
-                   equals: 1,
-                   "update helper script should not be hard-linked")
-        try expect(
-            String(data: try Data(contentsOf: URL(fileURLWithPath: helperPath)), encoding: .utf8),
-            equals: script,
-            "update helper script file should contain the generated script"
-        )
-
-        let existing = helperRoot.appendingPathComponent("existing.sh")
-        try Data("existing\n".utf8).write(to: existing)
-        var existingRejected = false
-        do {
-            _ = try writePrivateUpdateHelperScript("bad",
-                                                   directory: helperRoot.path,
-                                                   fileName: "existing.sh")
-        } catch {
-            existingRejected = true
-        }
-        try expect(existingRejected, equals: true,
-                   "update helper script writer should reject existing files")
-        try expect(
-            String(data: try Data(contentsOf: existing), encoding: .utf8),
-            equals: "existing\n",
-            "update helper script writer should leave existing files untouched"
-        )
-
-        let target = helperRoot.appendingPathComponent("target.sh")
-        try Data("target\n".utf8).write(to: target)
-        let link = helperRoot.appendingPathComponent("linked.sh")
-        try fm.createSymbolicLink(at: link, withDestinationURL: target)
-        var symlinkRejected = false
-        do {
-            _ = try writePrivateUpdateHelperScript("bad",
-                                                   directory: helperRoot.path,
-                                                   fileName: "linked.sh")
-        } catch {
-            symlinkRejected = true
-        }
-        try expect(symlinkRejected, equals: true,
-                   "update helper script writer should reject leaf symlinks")
-        try expect(
-            String(data: try Data(contentsOf: target), encoding: .utf8),
-            equals: "target\n",
-            "update helper script writer should leave symlink targets untouched"
-        )
-
-        let preferredLog = helperRoot.appendingPathComponent("SuperDictate-update.log")
-        let helperLog = try openPrivateUpdateHelperLog(preferredPath: preferredLog.path,
-                                                       fallbackDirectory: helperRoot.path)
-        helperLog.handle.write(Data("log\n".utf8))
-        helperLog.handle.closeFile()
-        try expect(helperLog.path, equals: preferredLog.path,
-                   "update helper log should use the preferred path when safe")
-        var logStat = stat()
-        guard lstat(preferredLog.path, &logStat) == 0 else {
-            throw SelfTestFailure.failed("update helper log file should exist")
-        }
-        try expect((logStat.st_mode & S_IFMT) == S_IFREG,
-                   equals: true,
-                   "update helper log should be a regular file")
-        try expect(Int(logStat.st_mode & mode_t(0o777)),
-                   equals: 0o600,
-                   "update helper log should be private to the current user")
-        try expect(Int(logStat.st_nlink),
-                   equals: 1,
-                   "update helper log should not be hard-linked")
-        try expect(
-            String(data: try Data(contentsOf: preferredLog), encoding: .utf8),
-            equals: "log\n",
-            "update helper log should receive helper output"
-        )
-
-        let linkedLogTarget = helperRoot.appendingPathComponent("linked-log-target.log")
-        try Data("target log\n".utf8).write(to: linkedLogTarget)
-        let linkedLog = helperRoot.appendingPathComponent("linked-log.log")
-        try fm.createSymbolicLink(at: linkedLog, withDestinationURL: linkedLogTarget)
-        let fallbackForSymlink = try openPrivateUpdateHelperLog(preferredPath: linkedLog.path,
-                                                                fallbackDirectory: helperRoot.path)
-        fallbackForSymlink.handle.write(Data("fallback\n".utf8))
-        fallbackForSymlink.handle.closeFile()
-        try expect(fallbackForSymlink.path == linkedLog.path,
-                   equals: false,
-                   "update helper log should fall back when preferred path is a symlink")
-        try expect(
-            String(data: try Data(contentsOf: linkedLogTarget), encoding: .utf8),
-            equals: "target log\n",
-            "update helper log fallback should leave symlink targets untouched"
-        )
-
-        let hardLogTarget = helperRoot.appendingPathComponent("hard-log-target.log")
-        try Data("hard target\n".utf8).write(to: hardLogTarget)
-        let hardLog = helperRoot.appendingPathComponent("hard-log.log")
-        try fm.linkItem(at: hardLogTarget, to: hardLog)
-        let fallbackForHardLink = try openPrivateUpdateHelperLog(preferredPath: hardLog.path,
-                                                                 fallbackDirectory: helperRoot.path)
-        fallbackForHardLink.handle.write(Data("hard fallback\n".utf8))
-        fallbackForHardLink.handle.closeFile()
-        try expect(fallbackForHardLink.path == hardLog.path,
-                   equals: false,
-                   "update helper log should fall back when preferred path is hard-linked")
-        try expect(
-            String(data: try Data(contentsOf: hardLogTarget), encoding: .utf8),
-            equals: "hard target\n",
-            "update helper log fallback should leave hard-linked targets untouched"
-        )
-    }
-
-    private static func testDirectUpdateReplacement() throws {
-        let fileManager = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("superdictate-update-replacement-test-\(UUID().uuidString)",
-                                    isDirectory: true)
-        let applications = root.appendingPathComponent("Applications", isDirectory: true)
-        let currentApp = applications.appendingPathComponent("VoiceSwap.app", isDirectory: true)
-        let workDirectory = root.appendingPathComponent("work", isDirectory: true)
-        let stagedApp = workDirectory
-            .appendingPathComponent("release", isDirectory: true)
-            .appendingPathComponent("VoiceSwap.app", isDirectory: true)
-        let backupApp = applications.appendingPathComponent(".VoiceSwap-update-backup.app",
-                                                             isDirectory: true)
-        let statePath = root.appendingPathComponent("state.txt")
-        let helperPath = root.appendingPathComponent("helper.sh")
-        try fileManager.createDirectory(at: applications, withIntermediateDirectories: true)
-        try makeSyntheticSignedUpdateApp(at: currentApp, version: "1.0.0")
-        try makeSyntheticSignedUpdateApp(at: stagedApp, version: "9.8.7")
-        try Data("starting\tStarting update…\n".utf8).write(to: statePath)
-        defer { try? fileManager.removeItem(at: root) }
-
-        let script = superDictateDirectUpdateHelperScript(
-            pid: Int32.max,
-            targetVersion: "9.8.7",
-            statePath: statePath.path,
-            stagedAppPath: stagedApp.path,
-            workDirectory: workDirectory.path,
-            backupAppPath: backupApp.path,
-            appPath: currentApp.path,
-            language: .english,
-            agentLabel: "com.local.superdictate.self-test.\(UUID().uuidString)",
-            relaunch: false
-        )
-        try script.write(to: helperPath, atomically: true, encoding: .utf8)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [helperPath.path]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-        let processOutput = String(data: output.fileHandleForReading.readDataToEndOfFile(),
-                                   encoding: .utf8) ?? ""
-        guard process.terminationStatus == 0 else {
-            throw SelfTestFailure.failed("direct update replacement failed: \(processOutput)")
-        }
-
-        try SuperDictateUpdateInstaller.validateApp(at: currentApp,
-                                                     expectedVersion: "9.8.7")
-        try expect(fileManager.fileExists(atPath: backupApp.path), equals: false,
-                   "successful direct update should remove its backup")
-        try expect(fileManager.fileExists(atPath: workDirectory.path), equals: false,
-                   "successful direct update should remove staged files")
-        try expect(UpdateProgressState.read(from: statePath.path)?.phase,
-                   equals: Optional("complete"),
-                   "successful direct update should report completion")
-    }
-
-    private static func makeSyntheticSignedUpdateApp(at appURL: URL,
-                                                     version: String) throws {
-        guard let sourceExecutable = Bundle.main.executableURL else {
-            throw SelfTestFailure.failed("self-test executable URL is unavailable")
-        }
-        let fileManager = FileManager.default
-        let executableDirectory = appURL.appendingPathComponent("Contents/MacOS", isDirectory: true)
-        try fileManager.createDirectory(at: executableDirectory, withIntermediateDirectories: true)
-        let executableURL = executableDirectory.appendingPathComponent("SuperDictate")
-        try fileManager.copyItem(at: sourceExecutable, to: executableURL)
-        try fileManager.setAttributes([.posixPermissions: 0o755],
-                                      ofItemAtPath: executableURL.path)
-        let info: [String: Any] = [
-            "CFBundleExecutable": "SuperDictate",
-            "CFBundleIdentifier": "com.vasya2004.voiceswap",
-            "CFBundleName": "VoiceSwap",
-            "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": version,
-            "CFBundleVersion": "1",
-        ]
-        let infoData = try PropertyListSerialization.data(fromPropertyList: info,
-                                                          format: .xml,
-                                                          options: 0)
-        try infoData.write(to: appURL.appendingPathComponent("Contents/Info.plist"))
-        let signing = SuperDictateAgentService.run("/usr/bin/codesign",
-                                                   ["--force", "--deep", "--sign", "-", appURL.path])
-        guard signing.status == 0 else {
-            throw SelfTestFailure.failed("could not sign synthetic update app: \(signing.output)")
-        }
-    }
-
-    private static func testUpdateProgressState() throws {
-        let launch = UpdateProgressLaunch(arguments: [
-            UPDATE_PROGRESS_ARGUMENT,
-            "/tmp/parakey.state",
-            "/tmp/parakey.log",
-            "9.8.7",
-            "/tmp/\(UPDATE_PROGRESS_APP_PREFIX)test.app",
-        ])
-        try expect(launch != nil, equals: true,
-                   "update progress launch arguments should parse")
-        try expect(launch?.targetVersion, equals: Optional("9.8.7"),
-                   "update progress launch should retain target version")
-        try expect(
-            UpdateProgressLaunch(arguments: [UPDATE_PROGRESS_ARGUMENT, "", "/tmp/parakey.log", "9.8.7", "/tmp/app"]) != nil,
-            equals: false,
-            "update progress launch should reject empty paths"
-        )
-
-        let statePath = try createPrivateUpdateProgressStateFile()
-        defer { try? FileManager.default.removeItem(atPath: statePath) }
-
-        var st = stat()
-        guard lstat(statePath, &st) == 0 else {
-            throw SelfTestFailure.failed("update progress state file should exist")
-        }
-        try expect((st.st_mode & S_IFMT) == S_IFREG, equals: true,
-                   "update progress state file should be regular")
-        try expect(Int(st.st_nlink), equals: 1,
-                   "update progress state file should not be hard-linked")
-        try expect(Int(st.st_mode & mode_t(0o777)), equals: 0o600,
-                   "update progress state file should be private to the current user")
-
-        let initial = UpdateProgressState.read(from: statePath)
-        try expect(initial?.phase, equals: Optional("starting"),
-                   "update progress state should default to starting")
-        try expect(initial?.message, equals: Optional("Starting update..."),
-                   "update progress state should default to the startup message")
-
-        try writePrivateUpdateProgressState(phase: "failed\tbad",
-                                            message: "Line 1\nLine 2",
-                                            to: statePath)
-        let failed = UpdateProgressState.read(from: statePath)
-        try expect(failed?.phase, equals: Optional("failed bad"),
-                   "update progress state should sanitize tab characters in phases")
-        try expect(failed?.message, equals: Optional("Line 1 Line 2"),
-                   "update progress state should sanitize newlines in messages")
-
-        let safeCleanupPath = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("\(UPDATE_PROGRESS_APP_PREFIX)test.app")
-        try expect(isSafeUpdateProgressCleanupPath(safeCleanupPath), equals: true,
-                   "update progress cleanup should allow copied temp app bundles")
-        try expect(isSafeUpdateProgressCleanupPath("/Applications/SuperDictate.app"), equals: false,
-                   "update progress cleanup should reject non-temp app bundles")
-        let unsafeTempPath = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("Parakey.app")
-        try expect(isSafeUpdateProgressCleanupPath(unsafeTempPath), equals: false,
-                   "update progress cleanup should reject temp app bundles without the copied-helper prefix")
-    }
-
-    private static func testHostileRegistryEnvDetection() throws {
-        try expect(
-            detectedHostileRegistryEnvVars(in: [:]),
-            equals: [],
-            "empty environment should not flag any registry override"
-        )
-        try expect(
-            detectedHostileRegistryEnvVars(in: ["HF_TOKEN": "redacted",
-                                                "PATH": "/usr/bin"]),
-            equals: [],
-            "unrelated env vars (incl. HF_TOKEN) must not flag as hostile"
-        )
-        try expect(
-            detectedHostileRegistryEnvVars(in: ["REGISTRY_URL": "https://evil.example/"]),
-            equals: ["REGISTRY_URL"],
-            "REGISTRY_URL must be flagged"
-        )
-        try expect(
-            detectedHostileRegistryEnvVars(in: ["MODEL_REGISTRY_URL": "https://evil.example/"]),
-            equals: ["MODEL_REGISTRY_URL"],
-            "MODEL_REGISTRY_URL must be flagged"
-        )
-        try expect(
-            detectedHostileRegistryEnvVars(in: ["REGISTRY_URL": "",
-                                                "MODEL_REGISTRY_URL": ""]),
-            equals: ["MODEL_REGISTRY_URL", "REGISTRY_URL"],
-            "an empty-string value still represents a tampered launch env"
-        )
-    }
-
-    private static func testAudioRouteChangeDecision() throws {
-        try expect(
-            audioStartupRetryDelaySeconds(afterFailedAttempt: 1),
-            equals: Optional(1 as UInt64),
-            "first audio startup failure should retry after one second"
-        )
-        try expect(
-            audioStartupRetryDelaySeconds(afterFailedAttempt: 2),
-            equals: Optional(3 as UInt64),
-            "second audio startup failure should retry after three seconds"
-        )
-        try expect(
-            audioStartupRetryDelaySeconds(afterFailedAttempt: 3),
-            equals: Optional(8 as UInt64),
-            "third audio startup failure should retry after eight seconds"
-        )
-        try expect(
-            audioStartupRetryDelaySeconds(afterFailedAttempt: 4),
-            equals: UInt64?.none,
-            "audio startup should stop retrying after the configured backoff schedule"
-        )
-        try expect(
-            audioRouteChangeAction(isTerminating: true,
-                                   isRestartingAudioInput: false,
-                                   isCoreRuntimeReady: true,
-                                   isRecording: false,
-                                   isBusy: false,
-                                   hasStartupTask: false),
-            equals: .ignore,
-            "route changes during termination should be ignored"
-        )
-        try expect(
-            audioRouteChangeAction(isTerminating: false,
-                                   isRestartingAudioInput: false,
-                                   isCoreRuntimeReady: false,
-                                   isRecording: false,
-                                   isBusy: false,
-                                   hasStartupTask: false),
-            equals: .rebuildMenuOnly,
-            "route changes before runtime readiness should only refresh the menu"
-        )
-        try expect(
-            audioRouteChangeAction(isTerminating: false,
-                                   isRestartingAudioInput: false,
-                                   isCoreRuntimeReady: true,
-                                   isRecording: true,
-                                   isBusy: false,
-                                   hasStartupTask: false),
-            equals: .deferRefresh,
-            "route changes during recording should defer the restart"
-        )
-        try expect(
-            audioRouteChangeAction(isTerminating: false,
-                                   isRestartingAudioInput: false,
-                                   isCoreRuntimeReady: true,
-                                   isRecording: false,
-                                   isBusy: false,
-                                   hasStartupTask: false),
-            equals: .restartNow,
-            "idle ready route changes should restart audio immediately"
-        )
-        try expect(
-            audioConfigurationChangeIsSuppressed(now: 10, suppressedUntil: nil),
-            equals: false,
-            "configuration changes should not be suppressed without a suppression deadline"
-        )
-        try expect(
-            audioConfigurationChangeIsSuppressed(now: 10, suppressedUntil: 11),
-            equals: true,
-            "configuration changes before the app-owned deadline should be ignored"
-        )
-        try expect(
-            audioConfigurationChangeIsSuppressed(now: 11, suppressedUntil: 11),
-            equals: false,
-            "configuration changes at the suppression deadline should be handled normally"
-        )
-    }
-
-    private static func testRecordingLifecycle() throws {
-        try expect(
-            recordingReleaseAction(capturedSampleCount: 3_999,
-                                   sampleRate: 16_000,
-                                   minimumClipSeconds: 0.25),
-            equals: .discardTooShort(duration: 0.2499375),
-            "release decision should discard clips under the minimum duration"
-        )
-        try expect(
-            recordingReleaseAction(capturedSampleCount: 4_000,
-                                   sampleRate: 16_000,
-                                   minimumClipSeconds: 0.25),
-            equals: .transcribe(duration: 0.25),
-            "release decision should transcribe clips at the minimum duration"
-        )
-        try expect(
-            recordingReleaseAction(capturedSampleCount: 4_000,
-                                   sampleRate: 0,
-                                   minimumClipSeconds: 0.25),
-            equals: .discardTooShort(duration: 0),
-            "release decision should handle invalid sample rates defensively"
-        )
-
-        let recoveryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("superdictate-recovery-test-\(UUID().uuidString)")
-            .appendingPathExtension("sdaudio")
-        defer { try? FileManager.default.removeItem(at: recoveryURL) }
-        let expectedSamples: [Float] = [-0.75, -0.125, 0, 0.25, 0.875]
-        let journal = try PendingDictationJournal(url: recoveryURL)
-        journal.append(Array(expectedSamples.prefix(2)))
-        journal.append(Array(expectedSamples.dropFirst(2)))
-        journal.finish()
-        try expect(
-            try PendingDictationRecovery.loadSamples(from: recoveryURL),
-            equals: expectedSamples,
-            "pending dictation journal should round-trip captured samples"
-        )
-        let recoveryHandle = try FileHandle(forWritingTo: recoveryURL)
-        try recoveryHandle.seekToEnd()
-        try recoveryHandle.write(contentsOf: Data([0x7f]))
-        try recoveryHandle.close()
-        try expect(
-            try PendingDictationRecovery.loadSamples(from: recoveryURL),
-            equals: expectedSamples,
-            "pending dictation recovery should ignore a partial trailing sample after a crash"
-        )
-        let recoveryAttributes = try FileManager.default.attributesOfItem(atPath: recoveryURL.path)
-        guard let recoveryMode = recoveryAttributes[.posixPermissions] as? NSNumber else {
-            throw SelfTestFailure.failed("pending dictation journal should expose POSIX permissions")
-        }
-        try expect(
-            recoveryMode.intValue,
-            equals: 0o600,
-            "pending dictation journal should be private"
-        )
-
-        let processed = processedDictationText(
-            rawTranscript: "  Um, parakeet is fast.  ",
-            corrections: [TranscriptCorrection(source: "parakeet", replacement: "Parakey")],
-            removeFillerWords: true
-        )
-        try expect(
-            processed,
-            equals: DictationTextProcessingResult(text: "Parakey is fast.",
-                                                  appliedCorrectionCount: 1,
-                                                  removedFillerWordCount: 1),
-            "dictation text processing should trim, apply corrections, then remove fillers"
-        )
-
-        let preservedFillers = processedDictationText(
-            rawTranscript: "  Um, parakeet is fast.  ",
-            corrections: [TranscriptCorrection(source: "parakeet", replacement: "Parakey")],
-            removeFillerWords: false
-        )
-        try expect(
-            preservedFillers,
-            equals: DictationTextProcessingResult(text: "Um, Parakey is fast.",
-                                                  appliedCorrectionCount: 1,
-                                                  removedFillerWordCount: 0),
-            "dictation text processing should preserve fillers when the setting is off"
-        )
-
-        let repairedYo = processedDictationText(
-            rawTranscript: "  <unk>лка, мо<UNK> и е<unk>. Потом <unk>жик.  ",
-            corrections: [],
-            removeFillerWords: false
-        )
-        try expect(
-            repairedYo.text,
-            equals: "Ёлка, моё и её. Потом ёжик.",
-            "dictation text processing should repair Parakeet unknown tokens used for Cyrillic yo"
-        )
-
-        let repairedYoRussian = processedDictationText(
-            rawTranscript: "  <unk>лка.  ",
-            corrections: [],
-            removeFillerWords: false,
-            language: .russian
-        )
-        try expect(
-            repairedYoRussian.text,
-            equals: "Ёлка.",
-            "explicit Russian language should repair <unk> to ё"
-        )
-
-        let removedUnkEnglish = processedDictationText(
-            rawTranscript: "  Hello <unk> world.  ",
-            corrections: [],
-            removeFillerWords: false,
-            language: .english
-        )
-        try expect(
-            removedUnkEnglish.text,
-            equals: "Hello world.",
-            "non-Russian language should remove <unk> tokens, not replace with Cyrillic ё"
-        )
-
-        let removedUnkPunctuation = SpeechModelTextRepair.apply(
-            to: "Hello <unk>, world.",
-            language: .english
-        )
-        try expect(
-            removedUnkPunctuation,
-            equals: "Hello, world.",
-            "removing <unk> should not leave a space before punctuation"
-        )
-
-        let removedUnkMultiSpace = SpeechModelTextRepair.apply(
-            to: "Hello <unk>   world",
-            language: .english
-        )
-        try expect(
-            removedUnkMultiSpace,
-            equals: "Hello world",
-            "removing <unk> should collapse multi-space runs left behind"
-        )
-
-        let removedUnkFrench = SpeechModelTextRepair.apply(
-            to: "Bonjour <unk> le monde.",
-            language: .french
-        )
-        try expect(
-            removedUnkFrench,
-            equals: "Bonjour le monde.",
-            "SpeechModelTextRepair should strip <unk> for French"
-        )
-
-        let autoYo = SpeechModelTextRepair.apply(
-            to: "<unk>лка",
-            language: .auto
-        )
-        try expect(
-            autoYo,
-            equals: "Ёлка",
-            "auto-detect language should preserve the ё repair for the default audience"
-        )
-
-        let markerText = systemAudioMuteMarkerText(pid: 12345,
-                                                   date: Date(timeIntervalSince1970: 0))
-        try expect(
-            systemAudioMuteMarkerProcessID(from: markerText),
-            equals: Optional(pid_t(12345)),
-            "system audio mute marker should preserve the owning pid"
-        )
-        try expect(
-            systemAudioMuteMarkerProcessID(from: "created=bad\n"),
-            equals: pid_t?.none,
-            "system audio mute marker parsing should ignore missing pids"
-        )
-
-        let script = systemAudioMuteWatchdogScript()
-        for fragment in [
-            #"PID="$1""#,
-            #"MARKER="$2""#,
-            #"/bin/kill -0 "$PID""#,
-            "/usr/bin/osascript -e 'set volume without output muted'",
-            #"/bin/rm -f "$MARKER""#,
-        ] {
-            guard script.contains(fragment) else {
-                throw SelfTestFailure.failed("system audio mute watchdog script missing fragment: \(fragment)")
-            }
-        }
-
-        // Mute command outcome: command failure and verified-unmuted
-        // are definitive "not muted"; an ambiguous verification after
-        // a successful command must be assumed muted so the recovery
-        // marker + watchdog stay armed.
-        try expect(
-            systemAudioMuteCommandOutcome(commandSucceeded: true, verifiedMuted: true),
-            equals: .muted,
-            "verified mute should report muted"
-        )
-        try expect(
-            systemAudioMuteCommandOutcome(commandSucceeded: true, verifiedMuted: nil),
-            equals: .assumedMuted,
-            "successful command with failed verification must assume muted"
-        )
-        try expect(
-            systemAudioMuteCommandOutcome(commandSucceeded: true, verifiedMuted: false),
-            equals: .failed,
-            "verified-unmuted after the command is a definitive failure"
-        )
-        try expect(
-            systemAudioMuteCommandOutcome(commandSucceeded: false, verifiedMuted: true),
-            equals: .failed,
-            "a failed command is not muted regardless of verification"
-        )
-
-        // Probe decision: only a definitive "output is live" while the
-        // recording still wants the mute arms recovery and mutes.
-        try expect(
-            systemAudioMuteProbeDecision(mutedState: false, unmuteAlreadyRequested: false),
-            equals: .armRecoveryAndMute,
-            "live output during an active recording should mute"
-        )
-        try expect(
-            systemAudioMuteProbeDecision(mutedState: true, unmuteAlreadyRequested: false),
-            equals: .standDown,
-            "a user-set mute must not be stomped"
-        )
-        try expect(
-            systemAudioMuteProbeDecision(mutedState: nil, unmuteAlreadyRequested: false),
-            equals: .standDown,
-            "a failed probe must not risk stomping an unseen user mute"
-        )
-        try expect(
-            systemAudioMuteProbeDecision(mutedState: false, unmuteAlreadyRequested: true),
-            equals: .standDown,
-            "a recording that already ended should not mute"
-        )
-
-        // Mute completion decision: assumed mutes behave exactly like
-        // verified mutes (recovery stays armed); a definitive failure
-        // disarms; a release that raced the command unmutes at once.
-        try expect(
-            systemAudioMuteCommandDecision(outcome: .muted, unmuteAlreadyRequested: false),
-            equals: .stayMuted,
-            "verified mute during recording should hold"
-        )
-        try expect(
-            systemAudioMuteCommandDecision(outcome: .assumedMuted, unmuteAlreadyRequested: false),
-            equals: .stayMuted,
-            "assumed mute must keep recovery armed, not disarm it"
-        )
-        try expect(
-            systemAudioMuteCommandDecision(outcome: .failed, unmuteAlreadyRequested: false),
-            equals: .disarmRecovery,
-            "definitive mute failure should disarm marker and watchdog"
-        )
-        try expect(
-            systemAudioMuteCommandDecision(outcome: .muted, unmuteAlreadyRequested: true),
-            equals: .beginUnmute,
-            "release during the mute command should unmute immediately"
-        )
-        try expect(
-            systemAudioMuteCommandDecision(outcome: .assumedMuted, unmuteAlreadyRequested: true),
-            equals: .beginUnmute,
-            "release during an assumed mute should also unmute immediately"
-        )
-
-        // Unmute request routing per lifecycle phase.
-        try expect(
-            systemAudioUnmuteRequestDecision(phase: .idle),
-            equals: .nothingToDo,
-            "no lifecycle → nothing to unmute"
-        )
-        try expect(
-            systemAudioUnmuteRequestDecision(phase: .probing),
-            equals: .deferUntilCommandSettles,
-            "release during the probe defers to the probe completion"
-        )
-        try expect(
-            systemAudioUnmuteRequestDecision(phase: .muting),
-            equals: .deferUntilCommandSettles,
-            "release during the mute command defers to its completion"
-        )
-        try expect(
-            systemAudioUnmuteRequestDecision(phase: .muted),
-            equals: .beginUnmute,
-            "release while muted unmutes immediately"
-        )
-        try expect(
-            systemAudioUnmuteRequestDecision(phase: .unmuting),
-            equals: .nothingToDo,
-            "release while an unmute is in flight should not double-issue"
-        )
-
-        let fm = FileManager.default
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("parakey-mute-marker-\(UUID().uuidString)", isDirectory: true)
-        try fm.createDirectory(at: root, withIntermediateDirectories: false)
-        defer { try? fm.removeItem(at: root) }
-
-        let marker = root.appendingPathComponent("system-audio-muted")
-        try writeSystemAudioMuteMarker(to: marker, text: markerText)
-        var markerStat = stat()
-        guard lstat(marker.path, &markerStat) == 0 else {
-            throw SelfTestFailure.failed("system audio mute marker should exist")
-        }
-        try expect((markerStat.st_mode & S_IFMT) == S_IFREG,
-                   equals: true,
-                   "system audio mute marker should be a regular file")
-        try expect(Int(markerStat.st_mode & mode_t(0o777)),
-                   equals: 0o600,
-                   "system audio mute marker should be private")
-        try expect(
-            String(data: try Data(contentsOf: marker), encoding: .utf8),
-            equals: markerText,
-            "system audio mute marker should contain the expected pid"
-        )
-
-        let target = root.appendingPathComponent("target-marker")
-        try Data("target\n".utf8).write(to: target)
-        let symlink = root.appendingPathComponent("linked-marker")
-        try fm.createSymbolicLink(at: symlink, withDestinationURL: target)
-        var symlinkRejected = false
-        do {
-            try writeSystemAudioMuteMarker(to: symlink, text: "bad\n")
-        } catch {
-            symlinkRejected = true
-        }
-        try expect(symlinkRejected,
-                   equals: true,
-                   "system audio mute marker should reject leaf symlinks")
-        try expect(
-            String(data: try Data(contentsOf: target), encoding: .utf8),
-            equals: "target\n",
-            "system audio mute marker should leave symlink targets untouched"
-        )
-    }
-
-    private static func testPowerStateRecoveryDecision() throws {
-        try expect(
-            shouldResumeRuntimeAfterSystemSleep(isTerminating: true,
-                                                isCoreRuntimeReady: true,
-                                                isReady: true,
-                                                isRecording: true,
-                                                audioIsRunning: true),
-            equals: false,
-            "sleep during termination should not schedule wake recovery"
-        )
-        try expect(
-            shouldResumeRuntimeAfterSystemSleep(isTerminating: false,
-                                                isCoreRuntimeReady: false,
-                                                isReady: false,
-                                                isRecording: false,
-                                                audioIsRunning: false),
-            equals: false,
-            "sleep before runtime startup should not schedule wake recovery"
-        )
-        try expect(
-            shouldResumeRuntimeAfterSystemSleep(isTerminating: false,
-                                                isCoreRuntimeReady: false,
-                                                isReady: false,
-                                                isRecording: true,
-                                                audioIsRunning: true),
-            equals: true,
-            "active recording should schedule wake recovery even if readiness is already down"
-        )
-        try expect(
-            wakeRuntimeRecoveryAction(shouldResumeAfterWake: false,
-                                      isTerminating: false,
-                                      hasStartupTask: false,
-                                      isBusy: false,
-                                      isSpeechModelReady: true),
-            equals: .ignore,
-            "wake without a sleep-paused runtime should do nothing"
-        )
-        try expect(
-            wakeRuntimeRecoveryAction(shouldResumeAfterWake: true,
-                                      isTerminating: false,
-                                      hasStartupTask: false,
-                                      isBusy: true,
-                                      isSpeechModelReady: true),
-            equals: .deferUntilIdle,
-            "wake during transcription should defer runtime recovery"
-        )
-        try expect(
-            wakeRuntimeRecoveryAction(shouldResumeAfterWake: true,
-                                      isTerminating: false,
-                                      hasStartupTask: true,
-                                      isBusy: false,
-                                      isSpeechModelReady: true),
-            equals: .deferUntilIdle,
-            "wake during startup should defer runtime recovery"
-        )
-        try expect(
-            wakeRuntimeRecoveryAction(shouldResumeAfterWake: true,
-                                      isTerminating: false,
-                                      hasStartupTask: false,
-                                      isBusy: false,
-                                      isSpeechModelReady: true),
-            equals: .startAudioRuntime,
-            "wake after a loaded model should restart audio without reloading the model"
-        )
-        try expect(
-            wakeRuntimeRecoveryAction(shouldResumeAfterWake: true,
-                                      isTerminating: false,
-                                      hasStartupTask: false,
-                                      isBusy: false,
-                                      isSpeechModelReady: false),
-            equals: .startFullStartup,
-            "wake without a loaded model should fall back to full startup"
-        )
-    }
-
-    private static func testHandledHotkeySuppression() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-        let f7 = hotkeyChoice(forKeycode: 98)
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "F-key keyDown should suppress and press"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: 97), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .pass,
-            "non-hotkey keyDown should pass through"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: f5.keycode), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "F-key keyUp should suppress and release"
-        )
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f7.keycode), hotkey: f7, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "recorded F-key keyDown should suppress and press"
-        )
-    }
-
-    private static func testCustomShortcutMatching() throws {
-        var state = HotkeyTransitionState()
-        let shortcut = hotkeyChoice(forKeycode: 40,
-                                    modifiers: [.maskCommand, .maskShift])
-        let commandShift = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: 40, flags: commandShift),
-                             hotkey: shortcut,
-                             triggerMode: .hold,
-                             isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "custom shortcut should trigger when its exact modifiers are held"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: 40),
-                             hotkey: shortcut,
-                             triggerMode: .hold,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "custom shortcut release should not depend on modifier release order"
-        )
-        try expect(
-            state.transition(for: event(.keyDown,
-                                        keycode: 40,
-                                        flags: CGEventFlags.maskCommand.rawValue),
-                             hotkey: shortcut,
-                             triggerMode: .hold,
-                             isRecording: false),
-            equals: .pass,
-            "custom shortcut should ignore incomplete modifier combinations"
-        )
-    }
-
-    private static func testModifierOnlyChordMatching() throws {
-        var state = HotkeyTransitionState()
-        let shortcut = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE,
-                                    modifiers: [.maskAlternate, .maskCommand])
-        let unrelatedEnterShortcut = hotkeyChoice(forKeycode: 80)
-        let alternate = CGEventFlags.maskAlternate.rawValue
-        let commandAlternate = alternate | CGEventFlags.maskCommand.rawValue
-
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE,
-                                        flags: alternate),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: .pass,
-            "an incomplete modifier chord must not reserve Option globally"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: .pass,
-            "releasing an incomplete modifier chord must reach the frontmost app"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE,
-                                        flags: alternate),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: .pass,
-            "Option should still pass through before the full shortcut activates"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: commandAlternate),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.press]),
-            "Option+Command should start dictation without stealing modifier events"
-        )
-        _ = state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: alternate),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: true)
-        _ = state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: true)
-        _ = state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: CGEventFlags.maskCommand.rawValue),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: true)
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE,
-                                        flags: commandAlternate),
-                             hotkey: shortcut,
-                             enterHotkey: unrelatedEnterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.release]),
-            "the same modifier chord should stop dictation without stealing modifiers"
-        )
-
-        var holdState = HotkeyTransitionState()
-        try expect(
-            holdState.transition(for: event(.flagsChanged,
-                                           keycode: RIGHT_OPTION_KEYCODE,
-                                           flags: alternate),
-                                 hotkey: shortcut,
-                                 enterHotkey: unrelatedEnterShortcut,
-                                 triggerMode: .hold,
-                                 isRecording: false),
-            equals: .pass,
-            "hold-mode chord prefixes must pass through"
-        )
-        try expect(
-            holdState.transition(for: event(.flagsChanged,
-                                           keycode: RIGHT_COMMAND_KEYCODE,
-                                           flags: commandAlternate),
-                                 hotkey: shortcut,
-                                 enterHotkey: unrelatedEnterShortcut,
-                                 triggerMode: .hold,
-                                 isRecording: false),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.press]),
-            "hold-mode modifier chords should press without stealing modifiers"
-        )
-        try expect(
-            holdState.transition(for: event(.flagsChanged,
-                                           keycode: RIGHT_OPTION_KEYCODE,
-                                           flags: CGEventFlags.maskCommand.rawValue),
-                                 hotkey: shortcut,
-                                 enterHotkey: unrelatedEnterShortcut,
-                                 triggerMode: .hold,
-                                 isRecording: true),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.release]),
-            "hold-mode modifier chords should release without stealing modifiers"
-        )
-        try expect(
-            holdState.transition(for: event(.flagsChanged,
-                                           keycode: RIGHT_COMMAND_KEYCODE),
-                                 hotkey: shortcut,
-                                 enterHotkey: unrelatedEnterShortcut,
-                                 triggerMode: .hold,
-                                 isRecording: false),
-            equals: .pass,
-            "the final modifier release must pass through"
-        )
-    }
-
-    private static func testConfigurableEnterShortcut() throws {
-        var state = HotkeyTransitionState()
-        let standard = hotkeyChoice(forKeycode: 96)
-        let enterShortcut = hotkeyChoice(forKeycode: 40,
-                                         modifiers: [.maskCommand, .maskShift])
-        let commandShift = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue
-
-        try expect(
-            state.transition(for: event(.keyDown,
-                                        keycode: 40,
-                                        flags: commandShift),
-                             hotkey: standard,
-                             enterHotkey: enterShortcut,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
-            "a user-configured Enter shortcut should use the Enter completion path"
-        )
-    }
-
-    private static func testFKeyAutoRepeatSuppressesWithoutAction() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "initial F-key keyDown should press"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode, isAutoRepeat: true), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .suppressOnly,
-            "F-key autorepeat keyDown should suppress without action"
-        )
-    }
-
-    private static func testRightModifierReleaseWithLeftFlagStillSet() throws {
-        var state = HotkeyTransitionState()
-        let rightOption = hotkeyChoice(forKeycode: 61)
-        let alternate = CGEventFlags.maskAlternate.rawValue
-
-        try expect(
-            state.transition(for: event(.flagsChanged, keycode: rightOption.keycode, flags: alternate), hotkey: rightOption, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "right modifier flagsChanged should press"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged, keycode: rightOption.keycode, flags: alternate), hotkey: rightOption, triggerMode: .hold, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "right modifier release should be recognized while left-side flag remains set"
-        )
-
-        var toggleState = HotkeyTransitionState()
-        try expect(
-            toggleState.transition(for: event(.flagsChanged,
-                                              keycode: rightOption.keycode,
-                                              flags: alternate),
-                                   hotkey: rightOption,
-                                   triggerMode: .toggle,
-                                   isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "right Option should start when it is the configured toggle hotkey"
-        )
-        _ = toggleState.transition(for: event(.flagsChanged,
-                                              keycode: rightOption.keycode),
-                                   hotkey: rightOption,
-                                   triggerMode: .toggle,
-                                   isRecording: true)
-        try expect(
-            toggleState.transition(for: event(.flagsChanged,
-                                              keycode: rightOption.keycode,
-                                              flags: alternate),
-                                   hotkey: rightOption,
-                                   triggerMode: .toggle,
-                                   isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "right Option should stop instead of being swallowed by the Enter chord"
-        )
-    }
-
-    private static func testRepeatedHistoryTriggerDebounce() throws {
-        var gate = RepeatedTriggerGate()
-        try expect(gate.accept(at: 10,
-                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
-                   equals: true,
-                   "the first history trigger should be accepted")
-        try expect(gate.accept(at: 10.01,
-                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
-                   equals: false,
-                   "an immediate duplicate history trigger should be ignored")
-        try expect(gate.accept(at: 10.249,
-                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
-                   equals: false,
-                   "history trigger debounce should cover the full interval")
-        try expect(gate.accept(at: 10.25,
-                               minimumInterval: HISTORY_HOTKEY_DEBOUNCE_SECONDS),
-                   equals: true,
-                   "a deliberate later history trigger should be accepted")
-    }
-
-    private static func testHistoryChordShowsOverlay() throws {
-        let rightCommand = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE)
-        let commandShift = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue
-
-        var shiftAlone = HotkeyTransitionState()
-        try expect(
-            shiftAlone.transition(for: event(.flagsChanged,
-                                            keycode: RIGHT_SHIFT_KEYCODE,
-                                            flags: CGEventFlags.maskShift.rawValue),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: .pass,
-            "Shift alone must pass through for app gestures such as Blender navigation"
-        )
-        try expect(
-            shiftAlone.transition(for: event(.flagsChanged,
-                                            keycode: RIGHT_SHIFT_KEYCODE,
-                                            flags: 0),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: .pass,
-            "Shift release must pass through when the history chord never completed"
-        )
-
-        var shiftFirst = HotkeyTransitionState()
-        try expect(
-            shiftFirst.transition(for: event(.flagsChanged,
-                                             keycode: RIGHT_SHIFT_KEYCODE,
-                                             flags: CGEventFlags.maskShift.rawValue),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: .pass,
-            "the first key of the history chord must remain available to other apps"
-        )
-        try expect(
-            shiftFirst.transition(for: event(.flagsChanged,
-                                             keycode: RIGHT_COMMAND_KEYCODE,
-                                             flags: commandShift),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.showHistory]),
-            "right shift then right command should show history without stealing modifiers"
-        )
-        try expect(
-            shiftFirst.transition(for: event(.flagsChanged,
-                                             keycode: RIGHT_COMMAND_KEYCODE,
-                                             flags: CGEventFlags.maskShift.rawValue),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: .pass,
-            "history chord should pass the paired right command release"
-        )
-        try expect(
-            shiftFirst.transition(for: event(.flagsChanged,
-                                             keycode: RIGHT_SHIFT_KEYCODE,
-                                             flags: 0),
-                                  hotkey: rightCommand,
-                                  triggerMode: .toggle,
-                                  isRecording: false),
-            equals: .pass,
-            "history chord should pass the paired right shift release"
-        )
-
-        var requiredModifierReleasedFirst = HotkeyTransitionState()
-        _ = requiredModifierReleasedFirst.transition(
-            for: event(.flagsChanged,
-                       keycode: RIGHT_SHIFT_KEYCODE,
-                       flags: CGEventFlags.maskShift.rawValue),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: false
-        )
-        _ = requiredModifierReleasedFirst.transition(
-            for: event(.flagsChanged,
-                       keycode: RIGHT_COMMAND_KEYCODE,
-                       flags: commandShift),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: false
-        )
-        try expect(
-            requiredModifierReleasedFirst.transition(
-                for: event(.flagsChanged,
-                           keycode: RIGHT_SHIFT_KEYCODE,
-                           flags: CGEventFlags.maskCommand.rawValue),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .pass,
-            "releasing Shift first should remain visible to the frontmost app"
-        )
-        try expect(
-            requiredModifierReleasedFirst.transition(
-                for: event(.flagsChanged,
-                           keycode: RIGHT_COMMAND_KEYCODE,
-                           flags: 0),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .pass,
-            "releasing right Command last should clear the history chord without interception"
-        )
-        try expect(
-            requiredModifierReleasedFirst.transition(
-                for: event(.flagsChanged,
-                           keycode: LEFT_COMMAND_KEYCODE,
-                           flags: CGEventFlags.maskCommand.rawValue),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .pass,
-            "left Command must not reuse stale right Command state"
-        )
-        try expect(
-            requiredModifierReleasedFirst.transition(
-                for: event(.flagsChanged,
-                           keycode: RIGHT_SHIFT_KEYCODE,
-                           flags: commandShift),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .pass,
-            "left Command plus Shift must pass through and not trigger right Command history"
-        )
-
-        var commandFirst = HotkeyTransitionState()
-        try expect(
-            commandFirst.transition(for: event(.flagsChanged,
-                                               keycode: RIGHT_COMMAND_KEYCODE,
-                                               flags: CGEventFlags.maskCommand.rawValue),
-                                    hotkey: rightCommand,
-                                    triggerMode: .toggle,
-                                    isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "right command alone should still start toggle dictation"
-        )
-        try expect(
-            commandFirst.transition(for: event(.flagsChanged,
-                                               keycode: RIGHT_SHIFT_KEYCODE,
-                                               flags: commandShift),
-                                    hotkey: rightCommand,
-                                    triggerMode: .toggle,
-                                    isRecording: true),
-            equals: HotkeyTransitionResult(suppress: false, actions: [.showHistory]),
-            "history chord should show history without canceling dictation or stealing Shift"
-        )
-        try expect(
-            commandFirst.transition(for: event(.flagsChanged,
-                                               keycode: RIGHT_COMMAND_KEYCODE,
-                                               flags: CGEventFlags.maskShift.rawValue),
-                                    hotkey: rightCommand,
-                                    triggerMode: .toggle,
-                                    isRecording: true),
-            equals: .pass,
-            "history chord should pass the paired right command release while recording"
-        )
-        try expect(
-            commandFirst.transition(for: event(.flagsChanged,
-                                               keycode: RIGHT_SHIFT_KEYCODE,
-                                               flags: 0),
-                                    hotkey: rightCommand,
-                                    triggerMode: .toggle,
-                                    isRecording: true),
-            equals: .pass,
-            "history chord should pass the paired right shift release"
-        )
-        try expect(
-            commandFirst.transition(for: event(.flagsChanged,
-                                               keycode: RIGHT_COMMAND_KEYCODE,
-                                               flags: CGEventFlags.maskCommand.rawValue),
-                                    hotkey: rightCommand,
-                                    triggerMode: .toggle,
-                                    isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "right command after the history chord should still stop active dictation"
-        )
-    }
-
-    private static func testConfigurableHistoryShortcut() throws {
-        var state = HotkeyTransitionState()
-        let standard = hotkeyChoice(forKeycode: 96)
-        let history = hotkeyChoice(forKeycode: 40,
-                                   modifiers: [.maskCommand, .maskShift])
-        let commandShift = CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue
-
-        try expect(
-            state.transition(for: event(.keyDown,
-                                        keycode: 40,
-                                        flags: commandShift),
-                             hotkey: standard,
-                             historyHotkey: history,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.showHistory]),
-            "a user-configured history shortcut should open history without stopping recording"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: 40),
-                             hotkey: standard,
-                             historyHotkey: history,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: .suppressOnly,
-            "a configurable history shortcut should suppress its paired release"
-        )
-    }
-
-    private static func testOptionCommandEnterChordStopsWithEnter() throws {
-        let rightCommand = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE)
-        let alternate = CGEventFlags.maskAlternate.rawValue
-
-        var state = HotkeyTransitionState()
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: CGEventFlags.maskCommand.rawValue),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "a single right Command press should still start toggle dictation"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_COMMAND_KEYCODE,
-                                        flags: 0),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: .suppressOnly,
-            "releasing the first right Command must keep toggle dictation active"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE,
-                                        flags: alternate),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
-            "right Option alone should finish and send toggle dictation"
-        )
-        try expect(
-            state.transition(for: event(.flagsChanged,
-                                        keycode: RIGHT_OPTION_KEYCODE,
-                                        flags: 0),
-                             hotkey: rightCommand,
-                             triggerMode: .toggle,
-                             isRecording: false),
-            equals: .suppressOnly,
-            "the paired right Option release should not leak to the frontmost app"
-        )
-
-        var windowsKeyboardState = HotkeyTransitionState()
-        _ = windowsKeyboardState.transition(
-            for: event(.flagsChanged,
-                       keycode: RIGHT_COMMAND_KEYCODE,
-                       flags: CGEventFlags.maskCommand.rawValue),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: false
-        )
-        _ = windowsKeyboardState.transition(
-            for: event(.flagsChanged, keycode: RIGHT_COMMAND_KEYCODE),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: true
-        )
-        try expect(
-            windowsKeyboardState.transition(
-                for: event(.flagsChanged,
-                           keycode: LEFT_OPTION_KEYCODE,
-                           flags: alternate),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: true
-            ),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
-            "Windows-layout keyboards that report right Alt as Option keycode 58 should finish and send"
-        )
-        try expect(
-            windowsKeyboardState.transition(
-                for: event(.flagsChanged, keycode: LEFT_OPTION_KEYCODE),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .suppressOnly,
-            "the compatible Option release should not leak to the frontmost app"
-        )
-
-        var fnKeyboardState = HotkeyTransitionState()
-        _ = fnKeyboardState.transition(
-            for: event(.flagsChanged,
-                       keycode: RIGHT_COMMAND_KEYCODE,
-                       flags: CGEventFlags.maskCommand.rawValue),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: false
-        )
-        _ = fnKeyboardState.transition(
-            for: event(.flagsChanged, keycode: RIGHT_COMMAND_KEYCODE),
-            hotkey: rightCommand,
-            triggerMode: .toggle,
-            isRecording: true
-        )
-        try expect(
-            fnKeyboardState.transition(
-                for: event(.flagsChanged,
-                           keycode: FN_KEYCODE,
-                           flags: CGEventFlags.maskSecondaryFn.rawValue),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: true
-            ),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.releaseAlternate]),
-            "Windows keyboards that surface the right-side modifier as Fn should finish and send"
-        )
-        try expect(
-            fnKeyboardState.transition(
-                for: event(.flagsChanged, keycode: FN_KEYCODE),
-                hotkey: rightCommand,
-                triggerMode: .toggle,
-                isRecording: false
-            ),
-            equals: .suppressOnly,
-            "the compatible Fn release should not leak to the frontmost app"
-        )
-
-        var customHotkeyState = HotkeyTransitionState()
-        try expect(
-            customHotkeyState.transition(for: event(.flagsChanged,
-                                                    keycode: RIGHT_OPTION_KEYCODE,
-                                                    flags: alternate),
-                                        hotkey: hotkeyChoice(forKeycode: 96),
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: .pass,
-            "right Option completion must not override a custom dictation hotkey"
-        )
-
-    }
-
-    private static func testEnterShortcutModeSelection() throws {
-        try expect(
-            shouldPressEnterAfterDictation(shortcut: .standard,
-                                           primaryBehavior: .insert),
-            equals: false,
-            "insert mode should make the primary shortcut finish without Enter"
-        )
-        try expect(
-            shouldPressEnterAfterDictation(shortcut: .alternate,
-                                           primaryBehavior: .insert),
-            equals: true,
-            "the alternate shortcut should invert insert mode"
-        )
-        try expect(
-            shouldPressEnterAfterDictation(shortcut: .standard,
-                                           primaryBehavior: .insertAndEnter),
-            equals: true,
-            "insert-and-Enter mode should make the primary shortcut press Enter"
-        )
-        try expect(
-            shouldPressEnterAfterDictation(shortcut: .alternate,
-                                           primaryBehavior: .insertAndEnter),
-            equals: false,
-            "the alternate shortcut should invert insert-and-Enter mode"
-        )
-
-        var state = HotkeyTransitionState()
-        let primary = hotkeyChoice(forKeycode: RIGHT_COMMAND_KEYCODE)
-        let alternate = hotkeyChoice(forKeycode: 96)
-        try expect(
-            state.transition(for: event(.keyDown, keycode: alternate.keycode),
-                             hotkey: primary,
-                             enterHotkey: alternate,
-                             alternateCompletionEnabled: false,
-                             triggerMode: .toggle,
-                             isRecording: true),
-            equals: .pass,
-            "a disabled alternate shortcut should not be intercepted"
-        )
-    }
-
-    private static func testTogglePressFlipsOnceAndReleaseIsNoOp() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "first toggle press should start"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: false),
-            equals: .suppressOnly,
-            "toggle release should be a no-op"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "second toggle press should stop"
-        )
-    }
-
-    private static func testToggleGatedPressDoesNotFlipToggleState() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-
-        // A press the app would reject (e.g. a transcription in
-        // flight) must suppress the key but not flip the toggle —
-        // otherwise the next press emits a swallowed .release and
-        // only the third press records.
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: false, canStartRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.rejectedBusyPress]),
-            "gated toggle press should suppress without flipping state but emit rejectedBusyPress for feedback"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: false, canStartRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "press after a gated press should start immediately"
-        )
-        // The stop-side press must NOT be gated: once a recording is
-        // active (canStartRecording is false by definition), the
-        // press still has to stop it.
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .toggle, isRecording: true, canStartRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.release]),
-            "gate must not block the toggle press that stops a recording"
-        )
-        // Hold mode ignores the gate entirely — handlePress discarding
-        // the press leaves no state behind in hold mode.
-        try expect(
-            state.transition(for: event(.keyDown, keycode: f5.keycode), hotkey: f5, triggerMode: .hold, isRecording: false, canStartRecording: false),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.press]),
-            "hold-mode press should be unaffected by the gate"
-        )
-    }
-
-    private static func testEscapePassesThroughWhenNotRecording() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: ESCAPE_KEYCODE), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .pass,
-            "Escape keyDown should pass through when not recording"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: ESCAPE_KEYCODE, isAutoRepeat: true), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .pass,
-            "Escape autorepeat should pass through when not recording"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: ESCAPE_KEYCODE), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .pass,
-            "Escape keyUp should pass through when not recording"
-        )
-    }
-
-    private static func testEscapeSuppressesCancelRepeatAndKeyUpWhileRecording() throws {
-        var state = HotkeyTransitionState()
-        let f5 = hotkeyChoice(forKeycode: 96)
-
-        try expect(
-            state.transition(for: event(.keyDown, keycode: ESCAPE_KEYCODE), hotkey: f5, triggerMode: .hold, isRecording: true),
-            equals: HotkeyTransitionResult(suppress: true, actions: [.cancel]),
-            "Escape keyDown should suppress and cancel while recording"
-        )
-        try expect(
-            state.transition(for: event(.keyDown, keycode: ESCAPE_KEYCODE, isAutoRepeat: true), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .suppressOnly,
-            "Escape autorepeat from a canceled press should stay suppressed"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: ESCAPE_KEYCODE), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .suppressOnly,
-            "paired Escape keyUp should stay suppressed after cancel"
-        )
-        try expect(
-            state.transition(for: event(.keyUp, keycode: ESCAPE_KEYCODE), hotkey: f5, triggerMode: .hold, isRecording: false),
-            equals: .pass,
-            "later Escape keyUp should pass through once the canceled press is complete"
-        )
-    }
-
-    private static func event(
-        _ type: CGEventType,
-        keycode: CGKeyCode,
-        flags: UInt64 = 0,
-        isAutoRepeat: Bool = false
-    ) -> HotkeyEventSnapshot {
-        HotkeyEventSnapshot(
-            typeRawValue: type.rawValue,
-            keycode: keycode,
-            flagsRawValue: flags,
-            isAutoRepeat: isAutoRepeat
-        )
-    }
-
-    private static func expect<T: Equatable>(
-        _ actual: T,
-        equals expected: T,
-        _ message: String
-    ) throws {
-        guard actual == expected else {
-            throw SelfTestFailure.failed("\(message): got \(actual), expected \(expected)")
-        }
-    }
-}
-
 if let status = ParakeySelfTest.run(arguments: Array(CommandLine.arguments.dropFirst())) {
     exit(status)
 }
 #endif
 
-private enum ControlPanelServiceOperation: String, Sendable {
+enum ControlPanelServiceOperation: String, Sendable {
     case starting
     case restarting
     case stopping
 }
 
-private enum ControlPanelShortcutKind: Int {
+enum ControlPanelShortcutKind: Int {
     case dictation = 0
     case alternateCompletion = 1
     case history = 2
 }
 
-private struct ControlPanelSettingsDraft: Equatable {
+struct ControlPanelSettingsDraft: Equatable {
     var dictationHotkey: HotkeyChoice
     var alternateCompletionHotkey: HotkeyChoice
     var historyHotkey: HotkeyChoice
@@ -22698,11 +14863,11 @@ private struct ControlPanelSettingsDraft: Equatable {
     }
 }
 
-private func hotkeysConflict(_ lhs: HotkeyChoice, _ rhs: HotkeyChoice) -> Bool {
+func hotkeysConflict(_ lhs: HotkeyChoice, _ rhs: HotkeyChoice) -> Bool {
     lhs.keycode == rhs.keycode && lhs.requiredModifiers == rhs.requiredModifiers
 }
 
-private func hotkeyIsModifierPrefix(_ prefix: HotkeyChoice,
+func hotkeyIsModifierPrefix(_ prefix: HotkeyChoice,
                                     of shortcut: HotkeyChoice) -> Bool {
     guard prefix.isModifier,
           prefix.requiredModifiers.isEmpty,
@@ -22713,7 +14878,7 @@ private func hotkeyIsModifierPrefix(_ prefix: HotkeyChoice,
     return shortcut.requiredModifiers.contains(prefixMask)
 }
 
-private enum ControlPanelUpdateState: Equatable, Sendable {
+enum ControlPanelUpdateState: Equatable, Sendable {
     case checking
     case upToDate(String)
     case available(GitHubRelease)
@@ -22721,2645 +14886,14 @@ private enum ControlPanelUpdateState: Equatable, Sendable {
     case failed(String)
 }
 
-private func settingsWindowContentHeight(visibleScreenHeight: CGFloat?) -> CGFloat {
+func settingsWindowContentHeight(visibleScreenHeight: CGFloat?) -> CGFloat {
     guard let visibleScreenHeight else { return 760 }
     return max(520, min(760, visibleScreenHeight - 80))
 }
 
 @MainActor
-private final class SettingsDocumentView: NSView {
+final class SettingsDocumentView: NSView {
     override var isFlipped: Bool { true }
-}
-
-@MainActor
-private final class SuperDictateControlPanelApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private var window: NSWindow?
-    private var settingsWindow: NSWindow?
-    private var refreshTimer: Timer?
-    private var serviceOperation: ControlPanelServiceOperation?
-    private var updateTask: Task<Void, Never>?
-    private var updateState: ControlPanelUpdateState = .checking
-    private var lastRenderFingerprint = ""
-    private let settings = Settings.shared
-    private var permissionClickCount: [Permission: Int] = [:]
-    private var settingsDraft: ControlPanelSettingsDraft?
-    private var hotkeyRecorder: HotkeyRecorderController?
-    private weak var aiKeyField: NSSecureTextField?
-    private weak var aiBaseURLField: NSTextField?
-    private weak var aiModelField: NSTextField?
-    private weak var settingsScrollView: NSScrollView?
-    private var pendingAIKey = ""
-
-    private var language: InterfaceLanguage { settings.interfaceLanguage }
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        guard SuperDictateControlPanelRegistry.claimCurrentPanel() else {
-            _ = SuperDictateControlPanelRegistry.activateExistingPanelIfPresent()
-            NSApp.terminate(nil)
-            return
-        }
-        NSApp.setActivationPolicy(.regular)
-        showWindow()
-        startRefreshTimer()
-        checkForUpdates()
-        if settings.agentEnabled && !SuperDictateAgentService.isAgentLoadedOrRunning() {
-            beginServiceOperation(.starting)
-        }
-    }
-
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showWindow()
-        return true
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        hotkeyRecorder?.cancel()
-        hotkeyRecorder = nil
-        refreshTimer?.invalidate()
-        refreshTimer = nil
-        updateTask?.cancel()
-        updateTask = nil
-        SuperDictateControlPanelRegistry.clearCurrentPanel()
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let closingWindow = notification.object as? NSWindow else { return }
-        if closingWindow === settingsWindow {
-            hotkeyRecorder?.cancel()
-            hotkeyRecorder = nil
-            settingsWindow = nil
-            settingsDraft = nil
-            aiKeyField = nil
-            aiBaseURLField = nil
-            aiModelField = nil
-            settingsScrollView = nil
-            pendingAIKey = ""
-            return
-        }
-        if closingWindow === window {
-            settingsWindow?.orderOut(nil)
-            settingsWindow = nil
-            NSApp.terminate(nil)
-        }
-    }
-
-    private func t(_ russian: String, _ english: String) -> String {
-        localizedText(russian, english, language: language)
-    }
-
-    private func showWindow() {
-        if let window {
-            refresh(force: true)
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 310),
-                              styleMask: [.titled, .closable, .miniaturizable],
-                              backing: .buffered,
-                              defer: false)
-        window.title = "VoiceSwap"
-        window.contentMinSize = NSSize(width: 520, height: 310)
-        window.contentMaxSize = NSSize(width: 520, height: 310)
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        self.window = window
-        refresh(force: true)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func startRefreshTimer() {
-        refreshTimer?.invalidate()
-        refreshTimer = Timer.scheduledTimer(timeInterval: 0.75,
-                                            target: self,
-                                            selector: #selector(refreshTimerFired(_:)),
-                                            userInfo: nil,
-                                            repeats: true)
-        refreshTimer?.tolerance = 0.15
-    }
-
-    @objc private func refreshTimerFired(_ timer: Timer) {
-        refresh()
-    }
-
-    private func refresh(force: Bool = false) {
-        guard let window else { return }
-        let fingerprint = renderFingerprint()
-        guard force || fingerprint != lastRenderFingerprint else { return }
-        lastRenderFingerprint = fingerprint
-        resizeCompactPanel(window)
-        window.title = t("VoiceSwap — панель управления", "VoiceSwap — Control Panel")
-        window.contentView = makeContentView()
-        if let settingsWindow, settingsWindow.isVisible {
-            settingsWindow.title = t("Настройки VoiceSwap", "VoiceSwap Settings")
-        }
-    }
-
-    private func resizeCompactPanel(_ window: NSWindow) {
-        let missingCount = Permission.allCases.filter { !Permissions.isGranted($0) }.count
-        let state = AgentRuntimeStateStore.read()
-        let showsModelProgress = SuperDictateAgentService.isAgentRunning()
-            && state?.status == "starting"
-            && state?.modelDownloadPhase != nil
-        let modelProgressHeight = showsModelProgress ? 26 : 0
-        let height = CGFloat(310 + max(0, missingCount - 1) * 28 + modelProgressHeight)
-        let oldTop = window.frame.maxY
-        let size = NSSize(width: 520, height: height)
-        window.contentMinSize = size
-        window.contentMaxSize = size
-        window.setContentSize(size)
-        var frame = window.frame
-        frame.origin.y = oldTop - frame.height
-        window.setFrame(frame, display: false)
-    }
-
-    private func renderFingerprint() -> String {
-        let state = AgentRuntimeStateStore.read()
-        let permissions = Permission.allCases.map { Permissions.isGranted($0) ? "1" : "0" }.joined()
-        let inputDevices = settingsWindow?.isVisible == true
-            ? availableAudioInputDevices()
-                .map { "\($0.uid)=\($0.name)" }
-                .joined(separator: "|")
-            : ""
-        let stateToken: String
-        if serviceOperation != nil {
-            stateToken = "operation"
-        } else {
-            let rawStatus = state?.status ?? "none"
-            let isHealthyRuntimeState = ["ready", "recording", "transcribing"].contains(rawStatus)
-            let phase = state?.modelDownloadPhase ?? ""
-            let startupProgressClock = rawStatus == "starting"
-                && (phase == "listing" || phase == "downloading" || phase == "preparing")
-                ? String(Int(Date().timeIntervalSince1970 / 3))
-                : ""
-            let detailToken = isHealthyRuntimeState ? "" : (state?.detail ?? "")
-            let progressToken = state?.downloadProgressFraction
-                .map { String(format: "%.2f", $0) } ?? ""
-            let downloadedToken = state?.modelDownloadedBytes.map { String($0) } ?? ""
-            let totalToken = state?.modelDownloadTotalBytes.map { String($0) } ?? ""
-            let speedToken = state?.modelDownloadBytesPerSecond
-                .map { String(format: "%.0f", $0) } ?? ""
-            let etaToken = state?.modelDownloadEstimatedSecondsRemaining
-                .map { String(format: "%.0f", $0) } ?? ""
-            stateToken = [isHealthyRuntimeState ? "ready" : rawStatus,
-                          detailToken,
-                          progressToken,
-                          phase,
-                          downloadedToken,
-                          totalToken,
-                          speedToken,
-                          etaToken,
-                          startupProgressClock,
-                          String(state?.pid ?? 0),
-                          state?.speechModelReady == true ? "1" : "0"].joined(separator: "|")
-        }
-        return [language.rawValue,
-                serviceOperation?.rawValue ?? "idle",
-                updateStateFingerprint(),
-                SuperDictateAgentService.isAgentRunning() ? "running" : "stopped",
-                stateToken,
-                permissions,
-                settings.configuredHotkey.name,
-                settings.configuredEnterHotkey.name,
-                settings.configuredHistoryHotkey.name,
-                settings.inputDevice,
-                inputDevices,
-                settings.primaryCompletionBehavior.rawValue,
-                settings.alternateCompletionEnabled ? "alternate-on" : "alternate-off",
-                settings.removeFinalPeriod ? "remove-period-on" : "remove-period-off",
-                settings.triggerMode.rawValue,
-                settings.recordingHUDRecordingColor.rawValue,
-                settings.recordingHUDTranscribingColor.rawValue,
-                settings.recordingHUDBackgroundStyle.rawValue,
-                settings.recordingHUDSize.rawValue,
-                permissionClickCount.description].joined(separator: "::")
-    }
-
-    private func updateStateFingerprint() -> String {
-        switch updateState {
-        case .checking:
-            return "checking"
-        case .upToDate(let version):
-            return "current:\(version)"
-        case .available(let release):
-            return "available:\(release.version)"
-        case .preparing(let version, let phase):
-            return "preparing:\(version):\(phase)"
-        case .failed(let message):
-            return "failed:\(message)"
-        }
-    }
-
-    private func makeContentView() -> NSView {
-        let root = NSStackView()
-        root.orientation = .vertical
-        root.alignment = .leading
-        root.spacing = 10
-        root.edgeInsets = NSEdgeInsets(top: 18, left: 20, bottom: 16, right: 20)
-        root.translatesAutoresizingMaskIntoConstraints = false
-
-        root.addArrangedSubview(compactHeaderView())
-        root.addArrangedSubview(compactServiceCard())
-        root.addArrangedSubview(compactPermissionsCard())
-        root.addArrangedSubview(compactUpdateCard())
-        root.addArrangedSubview(compactPrivacyFooter())
-
-        let background = NSVisualEffectView()
-        background.material = .underWindowBackground
-        background.blendingMode = .behindWindow
-        background.state = .active
-        background.addSubview(root)
-
-        NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-            root.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            root.topAnchor.constraint(equalTo: background.topAnchor),
-            root.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-        ])
-
-        let innerWidthInset = -(root.edgeInsets.left + root.edgeInsets.right)
-        for view in root.arrangedSubviews {
-            view.widthAnchor.constraint(equalTo: root.widthAnchor,
-                                        constant: innerWidthInset).isActive = true
-        }
-        return background
-    }
-
-    private func makeSettingsContentView() -> NSView {
-        let draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        let root = NSStackView()
-        root.orientation = .vertical
-        root.alignment = .leading
-        root.spacing = 11
-        root.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 22, right: 24)
-        root.translatesAutoresizingMaskIntoConstraints = false
-
-        root.addArrangedSubview(settingsHeaderView())
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(hotkeyRow(
-            title: t("Диктовка", "Dictation"),
-            shortcut: draft.dictationHotkey,
-            kind: .dictation,
-            toolTip: t("Начать запись. Повторное нажатие завершает её выбранным способом.",
-                       "Start recording. Press again to finish using the selected action.")
-        ))
-        root.addArrangedSubview(primaryCompletionBehaviorRow(draft))
-        root.addArrangedSubview(alternateCompletionRow(draft))
-        root.addArrangedSubview(enterDelayRow(draft))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(aiCleanupSection(draft))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(hotkeyRow(
-            title: t("История", "History"),
-            shortcut: draft.historyHotkey,
-            kind: .history,
-            toolTip: t("Открыть или закрыть последние транскрипции.",
-                       "Open or close recent transcriptions.")
-        ))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(audioFileOutputDirectoryRow(draft))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(microphoneSettingsRow(draft))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(panelLabel(t("Обработка текста", "Text processing"),
-                                           size: 12,
-                                           weight: .semibold,
-                                           color: .secondaryLabelColor))
-        root.addArrangedSubview(removeFinalPeriodRow(draft))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(popupRow(
-            title: t("Размер капсулы", "Capsule size"),
-            detail: t("Размер плавающего индикатора записи.",
-                      "Size of the floating recording indicator."),
-            selectedValue: draft.hudSize.rawValue,
-            options: RecordingHUDSize.allCases.map { (localizedHUDSizeName($0), $0.rawValue) },
-            action: #selector(selectRecordingHUDSize(_:)),
-            toolTip: t("Выбрать компактную, обычную или крупную капсулу.",
-                       "Choose a compact, standard, or large capsule.")
-        ))
-        root.addArrangedSubview(popupRow(
-            title: t("Цвет записи", "Recording color"),
-            detail: t("Цвет аудиоволн, пока микрофон слушает.",
-                      "Color used while the microphone is listening."),
-            selectedValue: draft.recordingColor.rawValue,
-            options: RecordingHUDAccentColor.allCases.map { (localizedColorName($0), $0.rawValue) },
-            action: #selector(selectRecordingHUDRecordingColor(_:)),
-            toolTip: t("Цвет индикатора во время записи.", "Indicator color while recording.")
-        ))
-        root.addArrangedSubview(popupRow(
-            title: t("Цвет транскрибации", "Transcribing color"),
-            detail: t("Цвет анимации во время распознавания речи.",
-                      "Color used while speech is being converted to text."),
-            selectedValue: draft.transcribingColor.rawValue,
-            options: RecordingHUDAccentColor.allCases.map { (localizedColorName($0), $0.rawValue) },
-            action: #selector(selectRecordingHUDTranscribingColor(_:)),
-            toolTip: t("Цвет индикатора во время распознавания речи.",
-                       "Indicator color while speech is being transcribed.")
-        ))
-        root.addArrangedSubview(popupRow(
-            title: t("Фон капсулы", "HUD background"),
-            detail: t("Системная тема или постоянный светлый/тёмный фон.",
-                      "Follow the system appearance or use a fixed background."),
-            selectedValue: draft.backgroundStyle.rawValue,
-            options: RecordingHUDBackgroundStyle.allCases.map { (localizedBackgroundName($0), $0.rawValue) },
-            action: #selector(selectRecordingHUDBackgroundStyle(_:)),
-            toolTip: t("Выбрать фон плавающего индикатора диктовки.",
-                       "Choose the floating dictation indicator background.")
-        ))
-        root.addArrangedSubview(separator())
-        root.addArrangedSubview(permissionsRecoveryRow())
-        root.addArrangedSubview(settingsActionsRow(draft: draft))
-        root.addArrangedSubview(privacyInfoView())
-
-        let background = NSVisualEffectView()
-        background.material = .underWindowBackground
-        background.blendingMode = .behindWindow
-        background.state = .active
-
-        let scroll = NSScrollView()
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.drawsBackground = false
-        scroll.contentView.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = false
-        scroll.autohidesScrollers = true
-        scroll.scrollerStyle = .overlay
-        settingsScrollView = scroll
-
-        let document = SettingsDocumentView()
-        document.translatesAutoresizingMaskIntoConstraints = false
-        document.addSubview(root)
-        scroll.documentView = document
-        background.addSubview(scroll)
-
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: background.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
-            document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-            root.leadingAnchor.constraint(equalTo: document.leadingAnchor),
-            root.trailingAnchor.constraint(equalTo: document.trailingAnchor),
-            root.topAnchor.constraint(equalTo: document.topAnchor),
-            root.bottomAnchor.constraint(equalTo: document.bottomAnchor),
-        ])
-
-        let innerWidthInset = -(root.edgeInsets.left + root.edgeInsets.right)
-        for view in root.arrangedSubviews {
-            view.widthAnchor.constraint(equalTo: root.widthAnchor,
-                                        constant: innerWidthInset).isActive = true
-        }
-        return background
-    }
-
-    private func compactHeaderView() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 1
-        text.addArrangedSubview(panelLabel("VoiceSwap", size: 20, weight: .semibold))
-        text.addArrangedSubview(panelLabel(
-            t("Локальная диктовка · работает в фоне", "Local dictation · runs in the background"),
-            size: 11.5,
-            color: .secondaryLabelColor
-        ))
-
-        let version = panelLabel("v\(currentBundleVersion())", size: 11, color: .tertiaryLabelColor)
-        version.setContentHuggingPriority(.required, for: .horizontal)
-        version.toolTip = t("Установленная версия VoiceSwap", "Installed VoiceSwap version")
-
-        let languageControl = NSSegmentedControl(labels: ["RU", "EN"],
-                                                 trackingMode: .selectOne,
-                                                 target: self,
-                                                 action: #selector(selectInterfaceLanguage(_:)))
-        languageControl.selectedSegment = language == .russian ? 0 : 1
-        languageControl.controlSize = .small
-        languageControl.toolTip = t("Язык панели и настроек", "Panel and settings language")
-        languageControl.setContentHuggingPriority(.required, for: .horizontal)
-
-        let settingsButton = compactIconButton(
-            symbol: "gearshape.fill",
-            accessibilityTitle: t("Открыть настройки", "Open Settings"),
-            toolTip: t("Открыть настройки диктовки и внешний вид индикатора",
-                       "Open dictation and indicator appearance settings"),
-            action: #selector(openSettingsClicked(_:))
-        )
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(version)
-        row.addArrangedSubview(languageControl)
-        row.addArrangedSubview(settingsButton)
-        return row
-    }
-
-    private func settingsHeaderView() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 12
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 2
-        text.addArrangedSubview(panelLabel(t("Настройки", "Settings"), size: 20, weight: .semibold))
-        text.addArrangedSubview(panelLabel(
-            t("Изменения применяются после сохранения — перезапуск модели не нужен.",
-              "Changes apply after saving; the speech model does not need to restart."),
-            size: 11.5,
-            color: .secondaryLabelColor
-        ))
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(panelLabel("v\(currentBundleVersion())", size: 11, color: .tertiaryLabelColor))
-        return row
-    }
-
-    private func compactServiceCard() -> NSView {
-        let running = SuperDictateAgentService.isAgentRunning()
-        let state = AgentRuntimeStateStore.read()
-        let presentation = servicePresentation(running: running, state: state)
-        let card = compactCard()
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 12
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        let icon = panelSymbol(running ? "waveform.circle.fill" : "waveform.circle",
-                               color: presentation.color,
-                               description: t("Состояние службы", "Service status"),
-                               pointSize: 25)
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 2
-        text.addArrangedSubview(panelLabel(presentation.status, size: 14, weight: .semibold))
-        let primaryShortcut = "\(t("Диктовка", "Dictation")): \(localizedHotkeyName(settings.configuredHotkey, language: language))"
-        let historyShortcut = "\(t("История", "History")): \(localizedHotkeyName(settings.configuredHistoryHotkey, language: language))"
-        let primaryBehavior = localizedCompletionBehavior(settings.primaryCompletionBehavior)
-        let primaryAction = "\(t("Повторное нажатие", "Press again")): \(primaryBehavior)"
-        let alternateAction = localizedCompletionBehavior(settings.primaryCompletionBehavior.opposite)
-        let alternateShortcut = settings.alternateCompletionEnabled
-            ? "\(t("Альтернативно", "Alternative")): \(localizedHotkeyName(settings.configuredEnterHotkey, language: language)) — \(alternateAction)"
-            : t("Альтернативное завершение выключено", "Alternative finish is disabled")
-        let showsModelProgress = running
-            && state?.status == "starting"
-            && state?.modelDownloadPhase != nil
-        let detailText = showsModelProgress
-            ? presentation.detail
-            : "\(presentation.detail)\n\(primaryShortcut) · \(historyShortcut)"
-        let detail = panelLabel(
-            detailText,
-            size: 11.5,
-            color: .secondaryLabelColor
-        )
-        detail.maximumNumberOfLines = showsModelProgress ? 3 : 2
-        detail.lineBreakMode = showsModelProgress ? .byWordWrapping : .byTruncatingTail
-        detail.toolTip = "\(presentation.detail)\n\(primaryShortcut)\n\(primaryAction)\n\(alternateShortcut)\n\(historyShortcut)"
-        text.addArrangedSubview(detail)
-
-        // Progress bar for download
-        if running, state?.status == "starting", let fraction = state?.downloadProgressFraction {
-            let progressBar = NSProgressIndicator()
-            progressBar.style = .bar
-            progressBar.controlSize = .small
-            progressBar.isIndeterminate = false
-            progressBar.minValue = 0
-            progressBar.maxValue = 1
-            progressBar.doubleValue = fraction
-            progressBar.translatesAutoresizingMaskIntoConstraints = false
-            progressBar.heightAnchor.constraint(equalToConstant: 6).isActive = true
-            text.addArrangedSubview(progressBar)
-            progressBar.widthAnchor.constraint(equalTo: text.widthAnchor).isActive = true
-        } else if running, state?.status == "starting" {
-            let progressBar = NSProgressIndicator()
-            progressBar.style = .bar
-            progressBar.controlSize = .small
-            progressBar.isIndeterminate = true
-            progressBar.startAnimation(nil)
-            progressBar.translatesAutoresizingMaskIntoConstraints = false
-            progressBar.heightAnchor.constraint(equalToConstant: 6).isActive = true
-            text.addArrangedSubview(progressBar)
-            progressBar.widthAnchor.constraint(equalTo: text.widthAnchor).isActive = true
-        }
-
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.alignment = .centerY
-        actions.spacing = 5
-        let enabled = serviceOperation == nil
-        let restartEnabled = enabled && state?.status != "starting"
-        if running {
-            actions.addArrangedSubview(compactIconButton(
-                symbol: "arrow.clockwise",
-                accessibilityTitle: t("Перезапустить службу", "Restart Service"),
-                toolTip: restartEnabled
-                    ? t("Перезапустить фоновую службу, не закрывая панель",
-                        "Restart the background service without closing the panel")
-                    : t("Дождитесь завершения подготовки модели.",
-                        "Wait for model preparation to finish."),
-                action: #selector(restartAgentClicked(_:)),
-                enabled: restartEnabled
-            ))
-            actions.addArrangedSubview(compactIconButton(
-                symbol: "stop.fill",
-                accessibilityTitle: t("Остановить службу", "Stop Service"),
-                toolTip: t("Остановить диктовку до следующего ручного запуска",
-                           "Stop dictation until it is started manually"),
-                action: #selector(stopAgentClicked(_:)),
-                enabled: enabled
-            ))
-        } else {
-            actions.addArrangedSubview(compactIconButton(
-                symbol: "play.fill",
-                accessibilityTitle: t("Запустить службу", "Start Service"),
-                toolTip: t("Запустить фоновую службу диктовки",
-                           "Start the background dictation service"),
-                action: #selector(startAgentClicked(_:)),
-                enabled: enabled
-            ))
-        }
-
-        row.addArrangedSubview(icon)
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(actions)
-        pin(row, inside: card, horizontal: 14, vertical: 11)
-        card.toolTip = presentation.detail
-        return card
-    }
-
-    private func compactPermissionsCard() -> NSView {
-        let missing = Permission.allCases.filter { !Permissions.isGranted($0) }
-        let card = compactCard()
-        let content = NSStackView()
-        content.orientation = .vertical
-        content.alignment = .leading
-        content.spacing = 7
-        content.translatesAutoresizingMaskIntoConstraints = false
-
-        let header = NSStackView()
-        header.orientation = .horizontal
-        header.alignment = .centerY
-        header.spacing = 8
-        let color: NSColor = missing.isEmpty ? .systemGreen : .systemOrange
-        header.addArrangedSubview(panelSymbol(missing.isEmpty ? "checkmark.shield.fill" : "exclamationmark.shield.fill",
-                                              color: color,
-                                              description: t("Разрешения macOS", "macOS permissions"),
-                                              pointSize: 15))
-        header.addArrangedSubview(panelLabel(t("Разрешения macOS", "macOS permissions"),
-                                             size: 12.5,
-                                             weight: .semibold))
-        header.addArrangedSubview(NSView())
-        header.addArrangedSubview(panelLabel(
-            missing.isEmpty ? t("Все выданы", "All granted")
-                            : t("Нужно: \(missing.count)", "Missing: \(missing.count)"),
-            size: 11.5,
-            weight: .medium,
-            color: color
-        ))
-        content.addArrangedSubview(header)
-
-        if missing.isEmpty {
-            let ready = panelLabel(
-                t("Микрофон, вставка текста и глобальный хоткей доступны.",
-                  "Microphone, text insertion, and the global shortcut are available."),
-                size: 11,
-                color: .secondaryLabelColor
-            )
-            ready.toolTip = t("SuperDictate получил все три необходимых разрешения macOS.",
-                              "SuperDictate has all three required macOS permissions.")
-            content.addArrangedSubview(ready)
-        } else {
-            for permission in missing {
-                content.addArrangedSubview(compactPermissionRow(permission))
-            }
-        }
-        pin(content, inside: card, horizontal: 13, vertical: 10)
-        return card
-    }
-
-    private func compactPermissionRow(_ permission: Permission) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 8
-        let title = panelLabel(permissionTitle(permission), size: 11.5, weight: .medium)
-        title.toolTip = permissionDetail(permission)
-        let buttonTitle = (permissionClickCount[permission] ?? 0) >= 1
-            ? t("Открыть настройки", "Open Settings") : t("Разрешить", "Grant")
-        let button = panelButton(buttonTitle,
-                                 action: #selector(grantPermissionClicked(_:)),
-                                 enabled: serviceOperation == nil,
-                                 toolTip: t("Открыть системное разрешение: \(permissionTitle(permission))",
-                                            "Open the system permission: \(permissionTitle(permission))"))
-        button.controlSize = .small
-        button.tag = Permission.allCases.firstIndex(of: permission) ?? -1
-        row.addArrangedSubview(title)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(button)
-        return row
-    }
-
-    private func compactUpdateCard() -> NSView {
-        let card = compactCard()
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 11
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        let presentation = compactUpdatePresentation()
-        row.addArrangedSubview(panelSymbol(presentation.symbol,
-                                           color: presentation.color,
-                                           description: t("Обновления", "Updates"),
-                                           pointSize: 17))
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 1
-        text.addArrangedSubview(panelLabel(presentation.title, size: 12.5, weight: .semibold))
-        let detail = panelLabel(presentation.detail, size: 11, color: .secondaryLabelColor)
-        detail.maximumNumberOfLines = 1
-        detail.lineBreakMode = .byTruncatingTail
-        detail.toolTip = presentation.detail
-        text.addArrangedSubview(detail)
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        if let buttonTitle = presentation.buttonTitle,
-           let action = presentation.action {
-            let button = panelButton(buttonTitle,
-                                     action: action,
-                                     enabled: presentation.buttonEnabled,
-                                     toolTip: presentation.buttonToolTip)
-            button.controlSize = .small
-            row.addArrangedSubview(button)
-        }
-        pin(row, inside: card, horizontal: 13, vertical: 9)
-        return card
-    }
-
-    private func compactUpdatePresentation() -> (symbol: String,
-                                                   color: NSColor,
-                                                   title: String,
-                                                   detail: String,
-                                                   buttonTitle: String?,
-                                                   action: Selector?,
-                                                   buttonEnabled: Bool,
-                                                   buttonToolTip: String?) {
-        switch updateState {
-        case .checking:
-            return ("arrow.triangle.2.circlepath", .systemBlue,
-                    t("Проверяю обновления", "Checking for updates"),
-                    t("Установлена v\(currentBundleVersion())", "Installed v\(currentBundleVersion())"),
-                    nil, nil, false, nil)
-        case .upToDate:
-            return ("checkmark.circle.fill", .systemGreen,
-                    t("SuperDictate актуален", "SuperDictate is up to date"),
-                    t("Установлена последняя версия v\(currentBundleVersion())",
-                      "Latest version v\(currentBundleVersion()) is installed"),
-                    t("Проверить", "Check"), #selector(updateButtonClicked(_:)), true,
-                    t("Проверить GitHub Releases ещё раз", "Check GitHub Releases again"))
-        case .available(let release):
-            return ("arrow.down.circle.fill", .systemBlue,
-                    t("Доступна версия v\(release.version)", "Version v\(release.version) is available"),
-                    t("Скачается, проверится и установится автоматически",
-                      "Downloads, verifies, and installs automatically"),
-                    t("Обновить", "Update"), #selector(updateButtonClicked(_:)), serviceOperation == nil,
-                    t("Обновить SuperDictate до v\(release.version) одной кнопкой",
-                      "Update SuperDictate to v\(release.version) with one click"))
-        case .preparing(let version, let phase):
-            return ("arrow.down.circle", .systemBlue,
-                    t("Обновляю до v\(version)", "Updating to v\(version)"),
-                    phase, nil, nil, false, nil)
-        case .failed(let message):
-            return ("exclamationmark.triangle.fill", .systemRed,
-                    t("Обновление не проверено", "Update check failed"),
-                    message,
-                    t("Повторить", "Retry"), #selector(updateButtonClicked(_:)), true,
-                    t("Повторить проверку обновлений", "Retry the update check"))
-        }
-    }
-
-    private func compactPrivacyFooter() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 7
-        row.addArrangedSubview(panelSymbol("xmark.circle",
-                                           color: .tertiaryLabelColor,
-                                           description: nil,
-                                           pointSize: 10))
-        let label = panelLabel(
-            t("Панель можно закрыть — диктовка продолжит работать в фоне.",
-              "You can close this panel — dictation keeps running in the background."),
-            size: 10.5,
-            color: .tertiaryLabelColor
-        )
-        label.toolTip = t("Это только панель управления. Аудио и распознавание остаются на Mac.",
-                          "This is only the control panel. Audio and transcription stay on this Mac.")
-        row.addArrangedSubview(label)
-        row.addArrangedSubview(NSView())
-        return row
-    }
-
-    private func operationTitle(_ operation: ControlPanelServiceOperation) -> String {
-        switch operation {
-        case .starting: return t("Запускаю службу диктовки", "Starting dictation service")
-        case .restarting: return t("Перезапускаю фоновую службу", "Restarting background service")
-        case .stopping: return t("Останавливаю фоновую службу", "Stopping background service")
-        }
-    }
-
-    private func operationDetail(_ operation: ControlPanelServiceOperation) -> String {
-        switch operation {
-        case .starting:
-            return t("Подключаю глобальный хоткей и локальную модель.\nОбычно 1–3 секунды; при первой загрузке дольше.",
-                     "Enabling the global shortcut and local model.\nUsually 1–3 seconds; the first download takes longer.")
-        case .restarting:
-            return t("Диктовка временно недоступна. Панель не зависла — новый воркер уже запускается.",
-                     "Dictation is temporarily unavailable. The panel is responsive while the new worker starts.")
-        case .stopping:
-            return t("Хоткей перестанет работать, но настройки и история сохранятся.",
-                     "The shortcut will stop; settings and history remain saved.")
-        }
-    }
-
-    private func servicePresentation(running: Bool,
-                                     state: AgentRuntimeState?) -> (status: String, detail: String, color: NSColor) {
-        if let operation = serviceOperation {
-            if operation != .stopping,
-               running,
-               let state,
-               state.status == "starting",
-               state.modelDownloadPhase != nil {
-                return (localizedStartupStatus(state),
-                        localizedServiceDetail(state),
-                        colorForStatus(state.status))
-            }
-            return (operationTitle(operation), operationDetail(operation), .systemBlue)
-        }
-        if running, let state {
-            if ["ready", "recording", "transcribing"].contains(state.status) {
-                return (t("Работает", "Running"),
-                        t("Фоновая служба включена.", "The background service is running."),
-                        .systemGreen)
-            }
-            if state.status == "starting" {
-                return (localizedStartupStatus(state),
-                        localizedServiceDetail(state),
-                        colorForStatus(state.status))
-            }
-            return (displayStatus(state.status), localizedServiceDetail(state), colorForStatus(state.status))
-        }
-        if running {
-            return (t("Запускается", "Starting"),
-                    t("Фоновый процесс запущен и готовит модель.", "The background process is preparing the model."),
-                    .systemOrange)
-        }
-        return (settings.agentEnabled ? t("Остановлена", "Stopped") : t("Выключена", "Off"),
-                t("Хоткей не работает, пока служба не запущена.",
-                  "The shortcut is unavailable until the service starts."),
-                settings.agentEnabled ? .systemRed : .secondaryLabelColor)
-    }
-
-    private func checkForUpdates() {
-        updateTask?.cancel()
-        updateState = .checking
-        refresh(force: true)
-        updateTask = Task { [weak self] in
-            let outcome = await UpdateCheck.fetchLatest()
-            guard !Task.isCancelled, let self else { return }
-            self.updateTask = nil
-            switch outcome {
-            case .success(let release):
-                self.settings.lastUpdateCheckAt = Date()
-                self.settings.lastUpdateCheckSource = .manual
-                self.settings.lastUpdateCheckVersion = release.version
-                if isNewer(release.version, than: currentBundleVersion()) {
-                    self.settings.lastUpdateCheckResult = .available
-                    self.updateState = .available(release)
-                } else {
-                    self.settings.lastUpdateCheckResult = .upToDate
-                    self.updateState = .upToDate(currentBundleVersion())
-                }
-            case .failure(let failure):
-                self.settings.lastUpdateCheckAt = Date()
-                self.settings.lastUpdateCheckSource = .manual
-                self.settings.lastUpdateCheckResult = .failed
-                self.updateState = .failed(self.localizedUpdateFailure(failure))
-            }
-            self.lastRenderFingerprint = ""
-            self.refresh(force: true)
-        }
-    }
-
-    private func localizedUpdateFailure(_ failure: UpdateCheckFailure) -> String {
-        guard language == .russian else { return manualUpdateCheckFailureText(failure) }
-        switch failure {
-        case .network:
-            return "Не удалось связаться с GitHub. Проверьте интернет и повторите попытку."
-        case .httpStatus(403):
-            return "GitHub временно ограничил проверку обновлений. Повторите через несколько минут."
-        case .httpStatus(let code):
-            return "GitHub вернул ошибку HTTP \(code). Повторите попытку позже."
-        case .unexpectedResponse:
-            return "GitHub вернул ответ, который SuperDictate не смог проверить."
-        }
-    }
-
-    private func beginInAppUpdate(for release: GitHubRelease) {
-        guard updateTask == nil else { return }
-        let version = release.version
-        updateState = .preparing(
-            version: version,
-            phase: t("Получаю защищённый манифест обновления…",
-                     "Fetching the verified update manifest…")
-        )
-        refresh(force: true)
-        updateTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                let manifest = try await SuperDictateUpdateInstaller.fetchManifest(
-                    expectedVersion: version
-                )
-                guard !Task.isCancelled else { return }
-                self.updateState = .preparing(
-                    version: version,
-                    phase: self.t("Скачиваю архив и проверяю SHA-256…",
-                                  "Downloading the archive and verifying SHA-256…")
-                )
-                self.refresh(force: true)
-                let prepared = try await SuperDictateUpdateInstaller.prepare(manifest: manifest)
-                guard !Task.isCancelled else {
-                    try? FileManager.default.removeItem(at: prepared.workDirectory)
-                    return
-                }
-                self.updateState = .preparing(
-                    version: version,
-                    phase: self.t("Архив проверен. Запускаю установку…",
-                                  "The archive is verified. Starting installation…")
-                )
-                self.refresh(force: true)
-                try self.launchPreparedUpdate(prepared)
-            } catch {
-                self.updateTask = nil
-                let message = (error as? SuperDictateUpdateInstallerError)?
-                    .message(language: self.language) ?? error.localizedDescription
-                self.updateState = .failed(message)
-                self.lastRenderFingerprint = ""
-                self.refresh(force: true)
-            }
-        }
-    }
-
-    private func launchPreparedUpdate(_ prepared: PreparedSuperDictateUpdate) throws {
-        let statePath = try createPrivateUpdateProgressStateFile()
-        let helperLog = try openPrivateUpdateHelperLog()
-        let appURL = Bundle.main.bundleURL
-        let backupURL = appURL.deletingLastPathComponent()
-            .appendingPathComponent(".VoiceSwap-update-backup-\(UUID().uuidString).app",
-                                    isDirectory: true)
-        let script = superDictateDirectUpdateHelperScript(
-            pid: getpid(),
-            targetVersion: prepared.version,
-            statePath: statePath,
-            stagedAppPath: prepared.stagedAppURL.path,
-            workDirectory: prepared.workDirectory.path,
-            backupAppPath: backupURL.path,
-            appPath: appURL.path,
-            language: language
-        )
-        let helperPath = try writePrivateUpdateHelperScript(script)
-
-        let progressAppPath: String
-        do {
-            progressAppPath = try launchUpdateProgressApp(
-                statePath: statePath,
-                logPath: helperLog.path,
-                targetVersion: prepared.version
-            )
-        } catch {
-            try? FileManager.default.removeItem(atPath: helperPath)
-            try? FileManager.default.removeItem(atPath: statePath)
-            try? FileManager.default.removeItem(at: prepared.workDirectory)
-            helperLog.handle.closeFile()
-            throw error
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [helperPath]
-        process.environment = systemToolProcessEnvironment()
-        process.standardOutput = helperLog.handle
-        process.standardError = helperLog.handle
-        do {
-            try process.run()
-        } catch {
-            try? FileManager.default.removeItem(atPath: helperPath)
-            try? FileManager.default.removeItem(atPath: statePath)
-            try? FileManager.default.removeItem(at: prepared.workDirectory)
-            try? FileManager.default.removeItem(atPath: progressAppPath)
-            helperLog.handle.closeFile()
-            throw error
-        }
-
-        updateTask = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            NSApp.terminate(nil)
-        }
-    }
-
-    private func launchUpdateProgressApp(statePath: String,
-                                         logPath: String,
-                                         targetVersion: String) throws -> String {
-        let sourceAppURL = Bundle.main.bundleURL
-        guard sourceAppURL.pathExtension == "app",
-              let executableName = Bundle.main.executableURL?.lastPathComponent else {
-            throw posixError(EINVAL)
-        }
-        let progressAppURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("\(UPDATE_PROGRESS_APP_PREFIX)\(UUID().uuidString).app",
-                                    isDirectory: true)
-        try FileManager.default.copyItem(at: sourceAppURL, to: progressAppURL)
-        let executableURL = progressAppURL
-            .appendingPathComponent("Contents/MacOS", isDirectory: true)
-            .appendingPathComponent(executableName)
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = [
-            UPDATE_PROGRESS_ARGUMENT,
-            statePath,
-            logPath,
-            targetVersion,
-            progressAppURL.path,
-        ]
-        process.environment = systemToolProcessEnvironment()
-        do {
-            try process.run()
-            return progressAppURL.path
-        } catch {
-            try? FileManager.default.removeItem(at: progressAppURL)
-            throw error
-        }
-    }
-
-    private func statusRow(title: String,
-                           detail: String,
-                           status: String,
-                           statusColor: NSColor,
-                           buttonTitle: String? = nil,
-                           action: Selector? = nil,
-                           tag: Int = 0,
-                           buttonEnabled: Bool = true,
-                           toolTip: String? = nil) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(title, size: 13, weight: .semibold))
-        let detailLabel = panelLabel(detail, size: 12, color: .secondaryLabelColor)
-        detailLabel.preferredMaxLayoutWidth = 440
-        text.addArrangedSubview(detailLabel)
-
-        let statusLabel = panelLabel(status, size: 12, weight: .medium, color: statusColor)
-        statusLabel.alignment = .right
-        statusLabel.setContentHuggingPriority(.required, for: .horizontal)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(statusLabel)
-        if let buttonTitle, let action {
-            let button = panelButton(buttonTitle,
-                                     action: action,
-                                     enabled: buttonEnabled,
-                                     toolTip: toolTip)
-            button.tag = tag
-            row.addArrangedSubview(button)
-        }
-        return row
-    }
-
-    private func hotkeyRow(title: String,
-                           shortcut: HotkeyChoice,
-                           kind: ControlPanelShortcutKind,
-                           toolTip: String) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        row.addArrangedSubview(panelLabel(title, size: 13, weight: .semibold))
-        row.addArrangedSubview(NSView())
-        let button = panelButton(localizedHotkeyName(shortcut, language: language),
-                                 action: #selector(recordDictationShortcutClicked(_:)),
-                                 enabled: serviceOperation == nil,
-                                 toolTip: toolTip)
-        button.tag = kind.rawValue
-        button.controlSize = .regular
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        button.widthAnchor.constraint(equalToConstant: 200).isActive = true
-        row.addArrangedSubview(button)
-        return row
-    }
-
-    private func primaryCompletionBehaviorRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(t("Повторное нажатие", "Press again"),
-                                           size: 13,
-                                           weight: .semibold))
-        text.addArrangedSubview(panelLabel(
-            t("Что сделать после вставки распознанного текста.",
-              "What to do after inserting the transcribed text."),
-            size: 12,
-            color: .secondaryLabelColor
-        ))
-
-        let control = NSSegmentedControl(
-            labels: [t("Вставить", "Insert"), t("Вставить + Enter", "Insert + Enter")],
-            trackingMode: .selectOne,
-            target: self,
-            action: #selector(selectPrimaryCompletionBehavior(_:))
-        )
-        control.selectedSegment = draft.primaryCompletionBehavior == .insert ? 0 : 1
-        control.isEnabled = serviceOperation == nil
-        control.toolTip = t("Выберите действие при повторном нажатии основного хоткея.",
-                            "Choose what the main shortcut does when pressed again.")
-        control.setContentHuggingPriority(.required, for: .horizontal)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(control)
-        return row
-    }
-
-    private func alternateCompletionRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let behavior = draft.primaryCompletionBehavior.opposite
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 10
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(
-            behavior == .insert
-                ? t("Завершить без Enter", "Finish without Enter")
-                : t("Завершить + Enter", "Finish + Enter"),
-            size: 13,
-            weight: .semibold
-        ))
-        text.addArrangedSubview(panelLabel(
-            t("Дополнительный хоткей работает только во время записи.",
-              "The alternative shortcut only works while recording."),
-            size: 12,
-            color: .secondaryLabelColor
-        ))
-
-        let toggle = NSSwitch()
-        toggle.target = self
-        toggle.action = #selector(toggleAlternateCompletion(_:))
-        toggle.state = draft.alternateCompletionEnabled ? .on : .off
-        toggle.isEnabled = serviceOperation == nil
-        toggle.toolTip = t("Включить дополнительный способ завершения записи.",
-                           "Enable the alternative way to finish recording.")
-        toggle.setContentHuggingPriority(.required, for: .horizontal)
-
-        let button = panelButton(
-            localizedHotkeyName(draft.alternateCompletionHotkey, language: language),
-            action: #selector(recordDictationShortcutClicked(_:)),
-            enabled: draft.alternateCompletionEnabled && serviceOperation == nil,
-            toolTip: t("Изменить дополнительный хоткей завершения.",
-                       "Change the alternative finish shortcut.")
-        )
-        button.tag = ControlPanelShortcutKind.alternateCompletion.rawValue
-        button.controlSize = .regular
-        button.widthAnchor.constraint(equalToConstant: 200).isActive = true
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(toggle)
-        row.addArrangedSubview(button)
-        return row
-    }
-
-    private static let enterDelayOptions: [(title: String, value: String)] = [
-        ("0 ms", "0"),
-        ("50 ms", "50"),
-        ("80 ms", "80"),
-        ("120 ms", "120"),
-        ("200 ms", "200"),
-        ("300 ms", "300"),
-    ]
-
-    private func enterDelayRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        popupRow(
-            title: t("Задержка Enter", "Enter delay"),
-            detail: t("Пауза между вставкой текста и нажатием Enter.",
-                      "Pause between inserting text and pressing Enter."),
-            selectedValue: String(draft.enterDelayMilliseconds),
-            options: Self.enterDelayOptions,
-            action: #selector(selectEnterDelay(_:)),
-            toolTip: t("Некоторым приложениям (Electron, VM) нужна пауза после вставки. Уменьшите для быстрых приложений.",
-                       "Some apps (Electron, VMs) need a pause after paste. Lower for fast native apps.")
-        )
-    }
-
-    private func aiCleanupSection(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let section = NSStackView()
-        section.orientation = .vertical
-        section.alignment = .leading
-        section.spacing = 8
-
-        section.addArrangedSubview(panelLabel(t("AI-чистка текста", "AI Cleanup"),
-                                              size: 13,
-                                              weight: .semibold))
-        let detail = panelLabel(
-            t("Необязательно: после распознавания текст отправляется на OpenAI-совместимый сервер для исправления грамматики и пунктуации. По умолчанию выключено.",
-              "Optional: after transcription the text is sent to an OpenAI-compatible endpoint to fix grammar and punctuation. Off by default."),
-            size: 12,
-            color: .secondaryLabelColor
-        )
-        detail.preferredMaxLayoutWidth = 620
-        section.addArrangedSubview(detail)
-
-        let hasKey = AIKeyStore.read() != nil
-        let enableRow = NSStackView()
-        enableRow.orientation = .horizontal
-        enableRow.alignment = .centerY
-        enableRow.spacing = 10
-        let toggle = NSSwitch()
-        toggle.target = self
-        toggle.action = #selector(toggleAICleanupDraft(_:))
-        toggle.state = draft.aiCleanupEnabled ? .on : .off
-        toggle.isEnabled = hasKey
-        toggle.toolTip = hasKey
-            ? t("Включить AI-чистку после распознавания.",
-                "Enable AI cleanup after transcription.")
-            : t("Сначала сохраните API-ключ.", "Save an API key first.")
-        toggle.setContentHuggingPriority(.required, for: .horizontal)
-        enableRow.addArrangedSubview(toggle)
-        enableRow.addArrangedSubview(panelLabel(
-            t("Включить AI-чистку", "Enable AI cleanup"),
-            size: 12
-        ))
-        section.addArrangedSubview(enableRow)
-
-        let urlField = NSTextField(string: draft.aiCleanupBaseURL)
-        urlField.placeholderString = AICleanupSettings.defaultBaseURL
-        urlField.font = .systemFont(ofSize: 12)
-        urlField.target = self
-        urlField.action = #selector(aiCleanupBaseURLChanged(_:))
-        urlField.toolTip = t("Базовый URL OpenAI-совместимого API (без /chat/completions).",
-                             "Base URL of the OpenAI-compatible API (without /chat/completions).")
-        urlField.widthAnchor.constraint(equalToConstant: 420).isActive = true
-        aiBaseURLField = urlField
-        section.addArrangedSubview(urlField)
-
-        let modelField = NSTextField(string: draft.aiCleanupModel)
-        modelField.placeholderString = AICleanupSettings.defaultModel
-        modelField.font = .systemFont(ofSize: 12)
-        modelField.target = self
-        modelField.action = #selector(aiCleanupModelChanged(_:))
-        modelField.toolTip = t("Имя модели на выбранном сервере.",
-                               "Model name on the configured endpoint.")
-        modelField.widthAnchor.constraint(equalToConstant: 420).isActive = true
-        aiModelField = modelField
-        section.addArrangedSubview(modelField)
-
-        let keyRow = NSStackView()
-        keyRow.orientation = .horizontal
-        keyRow.alignment = .centerY
-        keyRow.spacing = 8
-        let keyField = NSSecureTextField()
-        keyField.stringValue = pendingAIKey
-        keyField.placeholderString = hasKey
-            ? t("•••• сохранён", "•••• saved")
-            : t("API-ключ", "API key")
-        keyField.font = .systemFont(ofSize: 12)
-        keyField.toolTip = t("Ключ хранится только в Связке ключей macOS.",
-                             "The key is stored only in the macOS Keychain.")
-        keyField.widthAnchor.constraint(equalToConstant: 200).isActive = true
-        aiKeyField = keyField
-        keyRow.addArrangedSubview(keyField)
-        keyRow.addArrangedSubview(panelButton(
-            t("Сохранить ключ", "Save Key"),
-            action: #selector(saveAIKeyClicked(_:)),
-            toolTip: t("Записать ключ в Связку ключей macOS.",
-                       "Write the key to the macOS Keychain.")
-        ))
-        keyRow.addArrangedSubview(panelButton(
-            t("Удалить ключ", "Remove Key"),
-            action: #selector(removeAIKeyClicked(_:)),
-            enabled: hasKey,
-            toolTip: t("Удалить сохранённый ключ из Связки ключей.",
-                       "Delete the saved key from the Keychain.")
-        ))
-        keyRow.addArrangedSubview(panelButton(
-            t("Проверить подключение", "Test Connection"),
-            action: #selector(testAICleanupConnectionClicked(_:)),
-            enabled: hasKey,
-            toolTip: t("Отправить тестовый запрос к {базовый URL}/models.",
-                       "Send a test request to {base URL}/models.")
-        ))
-        section.addArrangedSubview(keyRow)
-
-        let privacyNote = panelLabel(
-            t("Внимание: продиктованный текст отправляется выбранному провайдеру. Бесплатные тарифы (например, OpenCode Zen) могут сохранять отправленный текст для улучшения модели — перед диктовкой личных текстов проверьте политику данных провайдера.",
-              "Note: dictated text is sent to the configured provider. Free tiers (e.g. OpenCode Zen) may retain submitted text for model improvement — check your provider's data policy before dictating personal content."),
-            size: 11.5,
-            color: .secondaryLabelColor
-        )
-        privacyNote.preferredMaxLayoutWidth = 620
-        section.addArrangedSubview(privacyNote)
-
-        let docsLink = NSButton(title: "console.groq.com",
-                                target: self,
-                                action: #selector(openAIProviderDocsClicked(_:)))
-        docsLink.isBordered = false
-        docsLink.font = .systemFont(ofSize: 11.5)
-        docsLink.contentTintColor = .systemBlue
-        docsLink.toolTip = "https://console.groq.com/keys"
-        docsLink.setContentHuggingPriority(.required, for: .horizontal)
-        section.addArrangedSubview(docsLink)
-
-        return section
-    }
-
-    private func audioFileOutputDirectoryRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(t("Транскрибация аудиофайлов", "Audio file transcription"),
-                                           size: 13,
-                                           weight: .semibold))
-        let abbreviatedPath = (draft.audioFileTranscriptionOutputDirectory as NSString)
-            .abbreviatingWithTildeInPath
-        let detail = panelLabel(
-            t("Текстовые файлы сохраняются в \(abbreviatedPath).",
-              "Text files are saved to \(abbreviatedPath)."),
-            size: 12,
-            color: .secondaryLabelColor
-        )
-        detail.maximumNumberOfLines = 2
-        detail.lineBreakMode = .byTruncatingMiddle
-        detail.toolTip = draft.audioFileTranscriptionOutputDirectory
-        text.addArrangedSubview(detail)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(panelButton(
-            t("Изменить…", "Change…"),
-            action: #selector(chooseAudioFileOutputDirectoryClicked(_:)),
-            toolTip: t("Выбрать папку для готовых .txt-файлов.",
-                       "Choose where completed .txt files are saved.")
-        ))
-        return row
-    }
-
-    private func microphoneSettingsRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let devices = availableAudioInputDevices()
-        let preference = draft.inputDevicePreference
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let selectedDevice = audioInputDevice(matching: preference, in: devices)
-        let unavailable = !preference.isEmpty && selectedDevice == nil
-
-        let detailText: String
-        if unavailable {
-            detailText = t(
-                "Устройство сейчас недоступно — временно используется системный микрофон.",
-                "The device is unavailable; the system microphone is used temporarily."
-            )
-        } else if let selectedDevice {
-            detailText = t(
-                "Выбран: \(selectedDevice.name). Применится без перезапуска модели.",
-                "Selected: \(selectedDevice.name). Applies without restarting the model."
-            )
-        } else {
-            detailText = t(
-                "Следовать выбору входа в настройках macOS.",
-                "Follow the input selected in macOS settings."
-            )
-        }
-
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(t("Микрофон", "Microphone"),
-                                           size: 13,
-                                           weight: .semibold))
-        let detail = panelLabel(detailText, size: 12, color: .secondaryLabelColor)
-        detail.maximumNumberOfLines = 2
-        detail.lineBreakMode = .byWordWrapping
-        text.addArrangedSubview(detail)
-
-        let popup = NSPopUpButton()
-        popup.target = self
-        popup.action = #selector(selectInputDeviceDraft(_:))
-        popup.toolTip = t(
-            "Выберите микрофон для диктовки. Отключённое устройство автоматически заменяется системным до его возвращения.",
-            "Choose the dictation microphone. A disconnected device falls back to the system input until it returns."
-        )
-        popup.addItem(withTitle: t("Системный по умолчанию", "System default"))
-        popup.lastItem?.representedObject = ""
-
-        if unavailable {
-            popup.addItem(withTitle: t("Недоступен: \(preference)", "Unavailable: \(preference)"))
-            popup.lastItem?.representedObject = preference
-            popup.lastItem?.isEnabled = false
-        }
-        if !devices.isEmpty {
-            popup.menu?.addItem(.separator())
-        }
-        for device in devices {
-            popup.addItem(withTitle: device.name)
-            popup.lastItem?.representedObject = device.uid
-            popup.lastItem?.toolTip = device.uid
-        }
-
-        let selectedValue = selectedDevice?.uid ?? (unavailable ? preference : "")
-        if let item = popup.itemArray.first(where: {
-            ($0.representedObject as? String) == selectedValue
-        }) {
-            popup.select(item)
-        }
-        popup.setContentHuggingPriority(.required, for: .horizontal)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(popup)
-        return row
-    }
-
-    private func removeFinalPeriodRow(_ draft: ControlPanelSettingsDraft) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(t("Убирать точку в конце", "Remove final period"),
-                                           size: 13,
-                                           weight: .semibold))
-        let detail = panelLabel(
-            t("Убирает только последнюю точку. !, ?, многоточия и точки внутри текста сохраняются.",
-              "Removes only the final period. !, ?, ellipses, and periods inside the text remain."),
-            size: 12,
-            color: .secondaryLabelColor
-        )
-        detail.maximumNumberOfLines = 2
-        detail.lineBreakMode = .byWordWrapping
-        detail.preferredMaxLayoutWidth = 500
-        text.addArrangedSubview(detail)
-
-        let toggle = NSSwitch()
-        toggle.target = self
-        toggle.action = #selector(toggleRemoveFinalPeriod(_:))
-        toggle.state = draft.removeFinalPeriod ? .on : .off
-        toggle.isEnabled = serviceOperation == nil
-        toggle.toolTip = t("Убрать один символ . только в самом конце распознанного текста.",
-                           "Remove one . character only at the very end of transcribed text.")
-        toggle.setContentHuggingPriority(.required, for: .horizontal)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(toggle)
-        return row
-    }
-
-    private func permissionsRecoveryRow() -> NSView {
-        let runtime = AgentRuntimeStateStore.read()
-        let dictationInProgress = runtime?.isRecording == true
-            || runtime?.isTranscribing == true
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(
-            t("Восстановление разрешений", "Permission recovery"),
-            size: 13,
-            weight: .semibold
-        ))
-        let detail = panelLabel(
-            t("Только если доступы macOS сломались после переустановки. Все три разрешения придётся выдать заново.",
-              "Use only when macOS permissions became stuck after reinstalling. All three permissions must be granted again."),
-            size: 12,
-            color: .secondaryLabelColor
-        )
-        detail.maximumNumberOfLines = 2
-        detail.preferredMaxLayoutWidth = 470
-        text.addArrangedSubview(detail)
-
-        let reset = panelButton(
-            t("Сбросить…", "Reset…"),
-            action: #selector(resetPermissionsClicked(_:)),
-            enabled: serviceOperation == nil && !dictationInProgress,
-            toolTip: dictationInProgress
-                ? t("Сначала завершите текущую диктовку.", "Finish the current dictation first.")
-                : t("Отозвать разрешения SuperDictate после дополнительного подтверждения.",
-                    "Revoke SuperDictate permissions after an additional confirmation.")
-        )
-        reset.setContentHuggingPriority(.required, for: .horizontal)
-
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(reset)
-        return row
-    }
-
-    private func popupRow(title: String,
-                          detail: String,
-                          selectedValue: String,
-                          options: [(title: String, value: String)],
-                          action: Selector,
-                          toolTip: String? = nil) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 14
-
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 3
-        text.addArrangedSubview(panelLabel(title, size: 13, weight: .semibold))
-        text.addArrangedSubview(panelLabel(detail, size: 12, color: .secondaryLabelColor))
-
-        let popup = NSPopUpButton()
-        popup.target = self
-        popup.action = action
-        popup.toolTip = toolTip
-        for option in options {
-            popup.addItem(withTitle: option.title)
-            popup.lastItem?.representedObject = option.value
-        }
-        if let item = popup.itemArray.first(where: { $0.representedObject as? String == selectedValue }) {
-            popup.select(item)
-        }
-        popup.setContentHuggingPriority(.required, for: .horizontal)
-        row.addArrangedSubview(text)
-        row.addArrangedSubview(NSView())
-        row.addArrangedSubview(popup)
-        return row
-    }
-
-    private func settingsActionsRow(draft: ControlPanelSettingsDraft) -> NSView {
-        let persisted = ControlPanelSettingsDraft(settings: settings)
-        let hasChanges = draft != persisted
-        let validation = settingsValidationMessage(draft)
-        let agentState = AgentRuntimeStateStore.read()
-        let dictationInProgress = agentState?.isRecording == true
-            || agentState?.isTranscribing == true
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 10
-
-        let unsavedMessage = dictationInProgress
-            ? t("Завершите текущую диктовку, чтобы сохранить",
-                "Finish the current dictation before saving")
-            : t("Есть несохранённые изменения", "You have unsaved changes")
-        let message = panelLabel(
-            validation ?? (hasChanges
-                ? unsavedMessage
-                : t("Все изменения сохранены", "All changes are saved")),
-            size: 11.5,
-            weight: .medium,
-            color: validation == nil ? .secondaryLabelColor : .systemRed
-        )
-        message.toolTip = validation
-        row.addArrangedSubview(message)
-        row.addArrangedSubview(NSView())
-
-        row.addArrangedSubview(panelButton(
-            t("Отменить", "Discard"),
-            action: #selector(discardSettingsClicked(_:)),
-            enabled: hasChanges && serviceOperation == nil,
-            toolTip: t("Отменить несохранённые изменения.", "Discard unsaved changes.")
-        ))
-        let save = panelButton(
-            t("Сохранить", "Save"),
-            action: #selector(saveSettingsClicked(_:)),
-            enabled: hasChanges
-                && validation == nil
-                && serviceOperation == nil
-                && !dictationInProgress,
-            toolTip: dictationInProgress
-                ? t("Сначала завершите текущую диктовку.",
-                    "Finish the current dictation first.")
-                : t("Сохранить и применить настройки без перезапуска модели.",
-                    "Save and apply settings without restarting the speech model.")
-        )
-        save.keyEquivalent = "\r"
-        row.addArrangedSubview(save)
-        return row
-    }
-
-    private func settingsValidationMessage(_ draft: ControlPanelSettingsDraft) -> String? {
-        let shortcuts = draft.alternateCompletionEnabled
-            ? [draft.dictationHotkey, draft.alternateCompletionHotkey, draft.historyHotkey]
-            : [draft.dictationHotkey, draft.historyHotkey]
-        for firstIndex in shortcuts.indices {
-            for secondIndex in shortcuts.indices where secondIndex > firstIndex {
-                let first = shortcuts[firstIndex]
-                let second = shortcuts[secondIndex]
-                if hotkeysConflict(first, second) {
-                    return t("Сочетания для диктовки, завершения и истории должны отличаться.",
-                             "Dictation, finish, and history shortcuts must be different.")
-                }
-                if hotkeyIsModifierPrefix(first, of: second)
-                    || hotkeyIsModifierPrefix(second, of: first) {
-                    return t("Одна активная комбинация не должна быть частью другой.",
-                             "One active shortcut cannot be a prefix of another.")
-                }
-            }
-        }
-        switch aiCleanupConfigurationIssue(enabled: draft.aiCleanupEnabled,
-                                           baseURL: draft.aiCleanupBaseURL,
-                                           model: draft.aiCleanupModel) {
-        case .baseURL:
-            return t("Для AI-чистки нужен корректный HTTPS-адрес сервера.",
-                     "AI cleanup requires a valid HTTPS endpoint.")
-        case .model:
-            return t("Укажите корректное имя модели для AI-чистки.",
-                     "Enter a valid model name for AI cleanup.")
-        case nil:
-            break
-        }
-        return nil
-    }
-
-    private func privacyInfoView() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 8
-        let icon = NSImageView(image: NSImage(systemSymbolName: "lock.shield.fill",
-                                              accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .secondaryLabelColor
-        row.addArrangedSubview(icon)
-        let label = panelLabel(
-            t("Аудио и распознавание остаются на Mac. Интернет нужен для первой загрузки модели, обновлений и — если включена AI-чистка — для отправки текста на выбранный вами сервер.",
-              "Audio and transcription stay on this Mac. Internet is used for the first model download, updates, and — only if AI cleanup is enabled — to send text to the endpoint you configured."),
-            size: 11.5,
-            color: .secondaryLabelColor
-        )
-        label.preferredMaxLayoutWidth = 600
-        row.addArrangedSubview(label)
-        return row
-    }
-
-    private func panelLabel(_ text: String,
-                            size: CGFloat,
-                            weight: NSFont.Weight = .regular,
-                            color: NSColor = .labelColor) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: size, weight: weight)
-        label.textColor = color
-        label.lineBreakMode = .byWordWrapping
-        label.maximumNumberOfLines = 0
-        return label
-    }
-
-    private func panelButton(_ title: String,
-                             action: Selector,
-                             enabled: Bool = true,
-                             toolTip: String? = nil) -> NSButton {
-        let button = NSButton(title: title, target: self, action: action)
-        button.bezelStyle = .rounded
-        button.controlSize = .regular
-        button.isEnabled = enabled
-        button.toolTip = toolTip
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        return button
-    }
-
-    private func compactIconButton(symbol: String,
-                                   accessibilityTitle: String,
-                                   toolTip: String,
-                                   action: Selector,
-                                   enabled: Bool = true) -> NSButton {
-        let button = NSButton(image: NSImage(systemSymbolName: symbol,
-                                             accessibilityDescription: accessibilityTitle) ?? NSImage(),
-                              target: self,
-                              action: action)
-        button.bezelStyle = .texturedRounded
-        button.controlSize = .small
-        button.isEnabled = enabled
-        button.toolTip = toolTip
-        button.setAccessibilityLabel(accessibilityTitle)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            button.widthAnchor.constraint(equalToConstant: 30),
-            button.heightAnchor.constraint(equalToConstant: 26),
-        ])
-        return button
-    }
-
-    private func compactCard() -> NSView {
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.cornerRadius = 8
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.70).cgColor
-        card.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.42).cgColor
-        card.layer?.borderWidth = 1
-        card.setContentHuggingPriority(.required, for: .vertical)
-        card.setContentCompressionResistancePriority(.required, for: .vertical)
-        return card
-    }
-
-    private func panelSymbol(_ name: String,
-                             color: NSColor,
-                             description: String?,
-                             pointSize: CGFloat) -> NSImageView {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: description) ?? NSImage()
-        let view = NSImageView(image: image)
-        view.contentTintColor = color
-        view.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
-        view.setContentHuggingPriority(.required, for: .horizontal)
-        return view
-    }
-
-    private func pin(_ view: NSView,
-                     inside container: NSView,
-                     horizontal: CGFloat,
-                     vertical: CGFloat) {
-        container.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: horizontal),
-            view.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -horizontal),
-            view.topAnchor.constraint(equalTo: container.topAnchor, constant: vertical),
-            view.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -vertical),
-        ])
-    }
-
-    private func separator() -> NSBox {
-        let box = NSBox()
-        box.boxType = .separator
-        return box
-    }
-
-    private func triggerModeText() -> String {
-        switch settings.triggerMode {
-        case .hold: return t("Удерживать", "Press and hold")
-        case .toggle: return t("Нажать для старта и ещё раз для остановки", "Press to start, press again to stop")
-        }
-    }
-
-    private func localizedCompletionBehavior(_ behavior: DictationCompletionBehavior) -> String {
-        switch behavior {
-        case .insert:
-            return t("Вставить", "Insert")
-        case .insertAndEnter:
-            return t("Вставить + Enter", "Insert + Enter")
-        }
-    }
-
-    private func displayStatus(_ raw: String) -> String {
-        switch raw {
-        case "ready": return t("Работает", "Running")
-        case "recording", "transcribing": return t("Работает", "Running")
-        case "starting": return t("Запускается", "Starting")
-        case "needs_permissions": return t("Нужен доступ", "Needs Access")
-        case "error": return t("Ошибка", "Error")
-        case "stopping": return t("Останавливается", "Stopping")
-        case "stopped": return t("Остановлена", "Stopped")
-        default: return raw.capitalized
-        }
-    }
-
-    private func localizedStartupStatus(_ state: AgentRuntimeState) -> String {
-        switch state.modelDownloadPhase {
-        case "checking", "listing":
-            return t("Проверяю модель", "Checking model")
-        case "downloading":
-            if (state.modelDownloadTotalBytes ?? 0) > 0 {
-                return t("Скачиваю модель", "Downloading model")
-            }
-            return t("Загружаю локальную модель", "Loading local model")
-        case "preparing":
-            return t("Готовлю Neural Engine", "Preparing Neural Engine")
-        case "recovering":
-            return t("Восстанавливаю диктовку", "Recovering dictation")
-        case "audio":
-            return t("Подключаю микрофон", "Starting microphone")
-        case "finishing":
-            return t("Почти готово", "Almost ready")
-        default:
-            return t("Запускаю службу", "Starting service")
-        }
-    }
-
-    private func localizedServiceDetail(_ state: AgentRuntimeState) -> String {
-        switch state.status {
-        case "ready", "recording", "transcribing":
-            return t("Фоновая служба готова к диктовке.",
-                     "The background service is ready for dictation.")
-        case "starting":
-            let now = Date().timeIntervalSince1970
-            let stalled = speechModelNetworkProgressIsStalled(
-                phase: state.modelDownloadPhase,
-                progressUpdatedAt: state.modelDownloadProgressUpdatedAt,
-                now: now
-            )
-            if state.modelDownloadPhase == "checking" {
-                return t(
-                    "Сначала ищу модель на этом Mac. Если локальные файлы целы, ничего скачиваться не будет.",
-                    "Looking for the model on this Mac first. Nothing will download when the local files are intact."
-                )
-            } else if state.modelDownloadPhase == "listing" {
-                let title = t(
-                    "Проверяю наличие и целостность файлов модели…",
-                    "Checking model file availability and integrity…"
-                )
-                if stalled {
-                    return "\(title)\n\(localizedModelDownloadNetworkHint(stalled: true))"
-                }
-                return title
-            } else if state.modelDownloadPhase == "downloading",
-                      let downloaded = state.modelDownloadedBytes,
-                      let total = state.modelDownloadTotalBytes {
-                var parts = [
-                    t("Скачано \(localizedModelByteCount(downloaded)) из \(localizedModelByteCount(total))",
-                      "Downloaded \(localizedModelByteCount(downloaded)) of \(localizedModelByteCount(total))")
-                ]
-                if stalled {
-                    parts.append(t("0 КБ/с", "0 KB/s"))
-                } else if let speed = state.modelDownloadBytesPerSecond, speed > 0 {
-                    parts.append(localizedModelDownloadSpeed(speed))
-                } else {
-                    parts.append(t("измеряю скорость…", "measuring speed…"))
-                }
-                if !stalled,
-                   let remaining = state.modelDownloadEstimatedSecondsRemaining,
-                   remaining.isFinite,
-                   remaining >= 0 {
-                    parts.append(t("осталось ≈ \(localizedModelDuration(remaining))",
-                                   "≈ \(localizedModelDuration(remaining)) left"))
-                }
-                let summary = parts.joined(separator: " · ")
-                let slow = (state.modelDownloadBytesPerSecond ?? .infinity) < 1_000_000
-                if stalled || slow {
-                    return "\(summary)\n\(localizedModelDownloadNetworkHint(stalled: stalled))"
-                }
-                return summary
-            } else if state.modelDownloadPhase == "preparing"
-                        || state.detail.hasPrefix("Preparing speech model") {
-                let elapsed = state.modelDownloadProgressUpdatedAt
-                    .map { max(0, Int((now - $0).rounded(.down))) }
-                let elapsedText = elapsed.map {
-                    t(" \($0) с", " \($0)s")
-                } ?? ""
-                return t(
-                    "Файлы уже на Mac — это не скачивание. Подготавливаю модель для Neural Engine…\(elapsedText)\nОбычно 20–45 секунд. Не перезапускайте службу: ожидание начнётся заново.",
-                    "The files are already on this Mac; this is not a download. Preparing the model for Neural Engine…\(elapsedText)\nUsually 20–45 seconds. Do not restart the service or the wait starts over."
-                )
-            } else if state.modelDownloadPhase == "recovering" {
-                return t("Модель готова. Сохраняю незавершённую диктовку в историю…",
-                         "The model is ready. Recovering an interrupted dictation into history…")
-            } else if state.modelDownloadPhase == "audio" {
-                return t("Модель готова. Подключаю микрофон и глобальные сочетания…",
-                         "The model is ready. Starting the microphone and global shortcuts…")
-            } else if state.modelDownloadPhase == "finishing" {
-                return t("Все компоненты готовы. Завершаю запуск…",
-                         "All components are ready. Finishing startup…")
-            } else if state.detail.hasPrefix("Loading cached speech model") {
-                return t("Модель уже на Mac. Загружаю её с диска — ничего не скачивается.",
-                         "The model is already on this Mac. Loading it from disk; nothing is downloading.")
-            } else if state.detail.hasPrefix("Loading speech model") {
-                return t("Загружаю языковую модель…", "Loading speech model…")
-            }
-            return t("Запускаю службу диктовки…", "Starting dictation service…")
-        case "needs_permissions": return t("Выдайте недостающие разрешения ниже.", "Grant the missing permissions below.")
-        case "stopped": return t("Фоновая служба остановлена.", "The background service is stopped.")
-        case "error": return t("Служба сообщила об ошибке: \(state.detail)", "Service error: \(state.detail)")
-        default: return state.detail
-        }
-    }
-
-    private func localizedModelByteCount(_ bytes: Int64) -> String {
-        let value: Double
-        let unit: String
-        if bytes >= 1_000_000_000 {
-            value = Double(bytes) / 1_000_000_000
-            unit = t("ГБ", "GB")
-        } else if bytes >= 1_000_000 {
-            value = Double(bytes) / 1_000_000
-            unit = t("МБ", "MB")
-        } else {
-            value = Double(bytes) / 1_000
-            unit = t("КБ", "KB")
-        }
-        let digits = value < 10 ? 1 : 0
-        return "\(localizedModelDecimal(value, digits: digits)) \(unit)"
-    }
-
-    private func localizedModelDownloadSpeed(_ bytesPerSecond: Double) -> String {
-        let value: Double
-        let unit: String
-        if bytesPerSecond >= 1_000_000 {
-            value = bytesPerSecond / 1_000_000
-            unit = t("МБ/с", "MB/s")
-        } else {
-            value = bytesPerSecond / 1_000
-            unit = t("КБ/с", "KB/s")
-        }
-        let digits = value < 10 ? 1 : 0
-        return "\(localizedModelDecimal(value, digits: digits)) \(unit)"
-    }
-
-    private func localizedModelDuration(_ seconds: Double) -> String {
-        let rounded = max(1, Int(seconds.rounded()))
-        if rounded < 60 {
-            return t("\(rounded) с", "\(rounded)s")
-        }
-        let minutes = rounded / 60
-        let remainder = rounded % 60
-        if remainder == 0 {
-            return t("\(minutes) мин", "\(minutes)m")
-        }
-        return t("\(minutes) мин \(remainder) с", "\(minutes)m \(remainder)s")
-    }
-
-    private func localizedModelDecimal(_ value: Double, digits: Int) -> String {
-        let result = String(format: "%.\(digits)f", value)
-        return language == .russian ? result.replacingOccurrences(of: ".", with: ",") : result
-    }
-
-    private func localizedModelDownloadNetworkHint(stalled: Bool) -> String {
-        if stalled {
-            return t("Прогресс остановился. Включите или выключите VPN, попробуйте другой VPN либо сеть.",
-                     "Progress has stopped. Toggle VPN, try another VPN, or switch networks.")
-        }
-        return t("Медленно? Включите или выключите VPN, попробуйте другой VPN либо сеть.",
-                 "Slow? Toggle VPN, try another VPN, or switch networks.")
-    }
-
-    private func colorForStatus(_ raw: String) -> NSColor {
-        switch raw {
-        case "ready", "recording", "transcribing": return .systemGreen
-        case "starting", "needs_permissions", "stopping": return .systemOrange
-        case "error", "stopped": return .systemRed
-        default: return .secondaryLabelColor
-        }
-    }
-
-    private func permissionTitle(_ permission: Permission) -> String {
-        switch permission {
-        case .microphone: return t("Микрофон", "Microphone")
-        case .accessibility: return t("Универсальный доступ", "Accessibility")
-        case .inputMonitoring: return t("Мониторинг ввода", "Input Monitoring")
-        }
-    }
-
-    private func permissionDetail(_ permission: Permission) -> String {
-        switch permission {
-        case .microphone:
-            return t("Запись голоса только во время активной диктовки.",
-                     "Lets the service hear your voice while dictation is active.")
-        case .accessibility:
-            return t("Поиск активного поля и вставка готового текста.",
-                     "Lets the service find the active field and insert text.")
-        case .inputMonitoring:
-            return t("Глобальное распознавание выбранного сочетания клавиш.",
-                     "Lets the service detect your shortcut globally.")
-        }
-    }
-
-    private func localizedColorName(_ color: RecordingHUDAccentColor) -> String {
-        guard language == .russian else { return color.displayName }
-        switch color {
-        case .red: return "Красный"
-        case .orange: return "Оранжевый"
-        case .pink: return "Розовый"
-        case .purple: return "Фиолетовый"
-        case .blue: return "Синий"
-        case .cyan: return "Голубой"
-        case .green: return "Зелёный"
-        case .white: return "Белый"
-        }
-    }
-
-    private func localizedBackgroundName(_ style: RecordingHUDBackgroundStyle) -> String {
-        guard language == .russian else { return style.displayName }
-        switch style {
-        case .system: return "Как в системе"
-        case .dark: return "Тёмный"
-        case .light: return "Светлый"
-        }
-    }
-
-    private func localizedHUDSizeName(_ size: RecordingHUDSize) -> String {
-        guard language == .russian else { return size.displayName }
-        switch size {
-        case .compact: return "Компактная"
-        case .standard: return "Обычная"
-        case .large: return "Крупная"
-        }
-    }
-
-    private func beginServiceOperation(_ operation: ControlPanelServiceOperation) {
-        guard serviceOperation == nil else { return }
-        serviceOperation = operation
-        lastRenderFingerprint = ""
-        refresh(force: true)
-        let operationStartedAt = Date().timeIntervalSince1970
-
-        Task { [weak self] in
-            let failure = await Task.detached(priority: .userInitiated) { () -> String? in
-                do {
-                    switch operation {
-                    case .starting:
-                        try SuperDictateAgentService.installAndStart()
-                    case .restarting:
-                        try SuperDictateAgentService.restart()
-                    case .stopping:
-                        SuperDictateAgentService.stop()
-                    }
-                    return nil
-                } catch {
-                    return error.localizedDescription
-                }
-            }.value
-
-            guard let self else { return }
-            if failure == nil {
-                await self.waitForServiceResult(operation: operation, startedAt: operationStartedAt)
-            }
-            self.serviceOperation = nil
-            self.lastRenderFingerprint = ""
-            self.refresh(force: true)
-            if let failure {
-                self.showError(
-                    title: self.t("Не удалось изменить состояние службы", "Service operation failed"),
-                    detail: failure
-                )
-            }
-        }
-    }
-
-    private func waitForServiceResult(operation: ControlPanelServiceOperation,
-                                      startedAt: TimeInterval) async {
-        for _ in 0..<80 {
-            let state = AgentRuntimeStateStore.read()
-            if operation == .stopping {
-                if state?.status == "stopped" { return }
-            } else if let state,
-                      state.updatedAt >= startedAt,
-                      ["ready", "error", "needs_permissions"].contains(state.status) {
-                return
-            }
-            try? await Task.sleep(nanoseconds: 250_000_000)
-        }
-    }
-
-    @objc private func updateButtonClicked(_ sender: NSButton) {
-        switch updateState {
-        case .available(let release):
-            beginInAppUpdate(for: release)
-        case .checking, .preparing:
-            return
-        case .upToDate, .failed:
-            checkForUpdates()
-        }
-    }
-
-    @objc private func startAgentClicked(_ sender: NSButton) {
-        settings.agentEnabled = true
-        _ = settings.refreshFromDisk()
-        beginServiceOperation(.starting)
-    }
-
-    @objc private func restartAgentClicked(_ sender: NSButton) {
-        guard AgentRuntimeStateStore.read()?.status != "starting" else {
-            refresh(force: true)
-            return
-        }
-        settings.agentEnabled = true
-        _ = settings.refreshFromDisk()
-        beginServiceOperation(.restarting)
-    }
-
-    @objc private func stopAgentClicked(_ sender: NSButton) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = t("Остановить службу диктовки?", "Stop Dictation Service?")
-        alert.informativeText = t("Хоткей перестанет работать, но история, модель и настройки сохранятся.",
-                                  "The shortcut will stop, but history, model, and settings remain saved.")
-        alert.addButton(withTitle: t("Оставить включённой", "Keep Running"))
-        alert.addButton(withTitle: t("Остановить", "Stop Service"))
-        guard alert.runModal() == .alertSecondButtonReturn else { return }
-        settings.agentEnabled = false
-        _ = settings.refreshFromDisk()
-        beginServiceOperation(.stopping)
-    }
-
-    @objc private func openSettingsClicked(_ sender: NSButton) {
-        if let settingsWindow {
-            refreshSettingsWindow()
-            settingsWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        settingsDraft = ControlPanelSettingsDraft(settings: settings)
-        let visibleFrame = (window?.screen ?? NSScreen.main)?.visibleFrame
-        let contentHeight = settingsWindowContentHeight(
-            visibleScreenHeight: visibleFrame?.height
-        )
-
-        let settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: contentHeight),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        settingsWindow.title = t("Настройки SuperDictate", "SuperDictate Settings")
-        settingsWindow.contentMinSize = NSSize(width: 680, height: contentHeight)
-        settingsWindow.contentMaxSize = NSSize(width: 680, height: contentHeight)
-        settingsWindow.isReleasedWhenClosed = false
-        settingsWindow.delegate = self
-        settingsWindow.contentView = makeSettingsContentView()
-        if let mainWindow = window, let visibleFrame {
-            let mainFrame = mainWindow.frame
-            let preferredRight = mainFrame.maxX + 14
-            let preferredLeft = mainFrame.minX - settingsWindow.frame.width - 14
-            let x = preferredRight + settingsWindow.frame.width <= visibleFrame.maxX
-                ? preferredRight
-                : max(visibleFrame.minX, preferredLeft)
-            let y = min(max(visibleFrame.minY,
-                            mainFrame.maxY - settingsWindow.frame.height),
-                        visibleFrame.maxY - settingsWindow.frame.height)
-            settingsWindow.setFrameOrigin(NSPoint(x: x, y: y))
-        } else {
-            settingsWindow.center()
-        }
-        self.settingsWindow = settingsWindow
-        settingsWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @objc private func recordDictationShortcutClicked(_ sender: NSButton) {
-        guard serviceOperation == nil,
-              let kind = ControlPanelShortcutKind(rawValue: sender.tag) else { return }
-        if let hotkeyRecorder {
-            hotkeyRecorder.present(relativeTo: settingsWindow)
-            return
-        }
-        let state = AgentRuntimeStateStore.read()
-        if state?.isRecording == true || state?.isTranscribing == true {
-            showError(
-                title: t("Сначала завершите диктовку", "Finish Dictation First"),
-                detail: t("Сочетание нельзя менять во время записи или распознавания.",
-                          "Shortcuts cannot be changed while recording or transcribing.")
-            )
-            return
-        }
-        if SuperDictateAgentService.isAgentRunning(), state?.isReady != true {
-            showError(
-                title: t("Служба ещё запускается", "Service Is Still Starting"),
-                detail: t("Дождитесь статуса «Работает» и попробуйте изменить сочетание ещё раз.",
-                          "Wait for the Running status, then try changing the shortcut again.")
-            )
-            return
-        }
-
-        DistributedNotificationCenter.default().postNotificationName(
-            HOTKEY_CAPTURE_BEGIN_NOTIFICATION,
-            object: nil,
-            userInfo: nil,
-            deliverImmediately: true
-        )
-        let recorderTitle: String
-        switch kind {
-        case .dictation:
-            recorderTitle = t("Новое сочетание для диктовки", "New Dictation Shortcut")
-        case .alternateCompletion:
-            recorderTitle = t("Дополнительное сочетание завершения", "Alternative Finish Shortcut")
-        case .history:
-            recorderTitle = t("Новое сочетание для истории", "New History Shortcut")
-        }
-        let recorder = HotkeyRecorderController(language: language,
-                                                titleOverride: recorderTitle) { [weak self] selected in
-            DistributedNotificationCenter.default().postNotificationName(
-                HOTKEY_CAPTURE_END_NOTIFICATION,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
-            guard let self else { return }
-            self.hotkeyRecorder = nil
-            guard let selected else { return }
-            var draft = self.settingsDraft ?? ControlPanelSettingsDraft(settings: self.settings)
-            switch kind {
-            case .dictation: draft.dictationHotkey = selected
-            case .alternateCompletion: draft.alternateCompletionHotkey = selected
-            case .history: draft.historyHotkey = selected
-            }
-            self.settingsDraft = draft
-            self.refreshSettingsWindow()
-        }
-        hotkeyRecorder = recorder
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self, weak recorder] in
-            guard self?.hotkeyRecorder === recorder else { return }
-            recorder?.present(relativeTo: self?.settingsWindow)
-        }
-    }
-
-    @objc private func selectInterfaceLanguage(_ sender: NSSegmentedControl) {
-        settings.interfaceLanguage = sender.selectedSegment == 1 ? .english : .russian
-        _ = settings.refreshFromDisk()
-        DistributedNotificationCenter.default().postNotificationName(
-            SETTINGS_CHANGED_NOTIFICATION,
-            object: nil,
-            userInfo: nil,
-            deliverImmediately: true
-        )
-        lastRenderFingerprint = ""
-        refresh(force: true)
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectPrimaryCompletionBehavior(_ sender: NSSegmentedControl) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.primaryCompletionBehavior = sender.selectedSegment == 1 ? .insertAndEnter : .insert
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func toggleAlternateCompletion(_ sender: NSSwitch) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.alternateCompletionEnabled = sender.state == .on
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func toggleRemoveFinalPeriod(_ sender: NSSwitch) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.removeFinalPeriod = sender.state == .on
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectRecordingHUDRecordingColor(_ sender: NSPopUpButton) {
-        guard let raw = sender.selectedItem?.representedObject as? String,
-              let color = RecordingHUDAccentColor(rawValue: raw) else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.recordingColor = color
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectRecordingHUDTranscribingColor(_ sender: NSPopUpButton) {
-        guard let raw = sender.selectedItem?.representedObject as? String,
-              let color = RecordingHUDAccentColor(rawValue: raw) else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.transcribingColor = color
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectRecordingHUDBackgroundStyle(_ sender: NSPopUpButton) {
-        guard let raw = sender.selectedItem?.representedObject as? String,
-              let style = RecordingHUDBackgroundStyle(rawValue: raw) else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.backgroundStyle = style
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectEnterDelay(_ sender: NSPopUpButton) {
-        guard let raw = sender.selectedItem?.representedObject as? String,
-              let ms = Int(raw) else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.enterDelayMilliseconds = ms
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func selectInputDeviceDraft(_ sender: NSPopUpButton) {
-        guard let preference = sender.selectedItem?.representedObject as? String else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.inputDevicePreference = preference
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func chooseAudioFileOutputDirectoryClicked(_ sender: NSButton) {
-        guard let settingsWindow else { return }
-        let draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        let panel = NSOpenPanel()
-        panel.title = t("Папка для транскрипций", "Transcription Output Folder")
-        panel.message = t("Готовые .txt-файлы будут сохраняться в эту папку.",
-                          "Completed .txt files will be saved in this folder.")
-        panel.prompt = t("Выбрать", "Choose")
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = URL(fileURLWithPath: draft.audioFileTranscriptionOutputDirectory,
-                                 isDirectory: true)
-        panel.beginSheetModal(for: settingsWindow) { [weak self] response in
-            Task { @MainActor in
-                guard response == .OK,
-                      let self,
-                      let selected = panel.url else { return }
-                var next = self.settingsDraft ?? ControlPanelSettingsDraft(settings: self.settings)
-                next.audioFileTranscriptionOutputDirectory = selected.standardizedFileURL.path
-                self.settingsDraft = next
-                self.refreshSettingsWindow()
-            }
-        }
-    }
-
-    @objc private func selectRecordingHUDSize(_ sender: NSPopUpButton) {
-        guard let raw = sender.selectedItem?.representedObject as? String,
-              let size = RecordingHUDSize(rawValue: raw) else { return }
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.hudSize = size
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func discardSettingsClicked(_ sender: NSButton) {
-        settingsDraft = ControlPanelSettingsDraft(settings: settings)
-        pendingAIKey = ""
-        refreshSettingsWindow(captureFields: false)
-    }
-
-    @objc private func toggleAICleanupDraft(_ sender: NSSwitch) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.aiCleanupEnabled = sender.state == .on
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func aiCleanupBaseURLChanged(_ sender: NSTextField) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.aiCleanupBaseURL = sender.stringValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func aiCleanupModelChanged(_ sender: NSTextField) {
-        var draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        draft.aiCleanupModel = sender.stringValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        settingsDraft = draft
-        refreshSettingsWindow()
-    }
-
-    @objc private func saveAIKeyClicked(_ sender: NSButton) {
-        captureAISettingsFields()
-        let key = pendingAIKey
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
-        do {
-            try AIKeyStore.write(key)
-            pendingAIKey = ""
-            refreshSettingsWindow(captureFields: false)
-        } catch {
-            showError(
-                title: t("Не удалось сохранить ключ", "Couldn’t Save Key"),
-                detail: error.localizedDescription
-            )
-        }
-    }
-
-    @objc private func removeAIKeyClicked(_ sender: NSButton) {
-        captureAISettingsFields()
-        do {
-            try AIKeyStore.delete()
-            pendingAIKey = ""
-            // Without a key every dictation would fail with noAPIKey — turn the feature off.
-            settings.aiCleanupEnabled = false
-            if var draft = settingsDraft {
-                draft.aiCleanupEnabled = false
-                settingsDraft = draft
-            }
-            DistributedNotificationCenter.default().postNotificationName(
-                SETTINGS_CHANGED_NOTIFICATION,
-                object: nil,
-                userInfo: nil,
-                deliverImmediately: true
-            )
-            refreshSettingsWindow(captureFields: false)
-        } catch {
-            showError(
-                title: t("Не удалось удалить ключ", "Couldn’t Remove Key"),
-                detail: error.localizedDescription
-            )
-        }
-    }
-
-    @objc private func testAICleanupConnectionClicked(_ sender: NSButton) {
-        captureAISettingsFields()
-        let draft = settingsDraft ?? ControlPanelSettingsDraft(settings: settings)
-        guard let key = AIKeyStore.read() else {
-            showError(
-                title: t("Нет API-ключа", "No API Key"),
-                detail: t("Сначала сохраните API-ключ.", "Save an API key first.")
-            )
-            return
-        }
-        sender.isEnabled = false
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let result = await AICleanupService.probeModels(baseURL: draft.aiCleanupBaseURL,
-                                                            apiKey: key,
-                                                            model: draft.aiCleanupModel)
-            switch result {
-            case .success:
-                let alert = NSAlert()
-                alert.alertStyle = .informational
-                alert.messageText = t("Подключение успешно", "Connection OK")
-                alert.informativeText = t("Сервер доступен, и выбранная модель найдена.",
-                                          "The endpoint is reachable and the configured model is available.")
-                alert.addButton(withTitle: t("ОК", "OK"))
-                alert.runModal()
-            case .failure(let error):
-                self.showError(
-                    title: t("Проверка не удалась", "Connection Failed"),
-                    detail: self.aiCleanupProbeErrorMessage(error)
-                )
-            }
-            self.refreshSettingsWindow()
-        }
-    }
-
-    private func aiCleanupProbeErrorMessage(_ error: AICleanupError) -> String {
-        switch error {
-        case .noAPIKey:
-            return t("API-ключ не сохранён.", "No API key is stored.")
-        case .network(let underlying):
-            return t("Ошибка сети: \(underlying.localizedDescription)",
-                     "Network error: \(underlying.localizedDescription)")
-        case .httpStatus(let code):
-            return t("Сервер ответил с ошибкой HTTP \(code).",
-                     "The endpoint returned HTTP \(code).")
-        case .unexpectedResponse:
-            return t("Сервер вернул неожиданный ответ.",
-                     "The endpoint returned an unexpected response.")
-        case .emptyResult:
-            return t("Сервер вернул пустой ответ.", "The endpoint returned an empty response.")
-        case .modelUnavailable(let model):
-            return t("Модель \(model) недоступна для этого ключа.",
-                     "Model \(model) is unavailable for this API key.")
-        }
-    }
-
-    @objc private func openAIProviderDocsClicked(_ sender: NSButton) {
-        if let url = URL(string: "https://console.groq.com/keys") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    @objc private func saveSettingsClicked(_ sender: NSButton) {
-        captureAISettingsFields()
-        guard let draft = settingsDraft,
-              settingsValidationMessage(draft) == nil else { return }
-        let agentState = AgentRuntimeStateStore.read()
-        guard agentState?.isRecording != true,
-              agentState?.isTranscribing != true else {
-            showError(
-                title: t("Диктовка ещё не завершена", "Dictation Is Still Active"),
-                detail: t("Завершите запись или распознавание, затем сохраните настройки.",
-                          "Finish recording or transcription, then save the settings.")
-            )
-            return
-        }
-        settings.setConfiguredHotkey(draft.dictationHotkey)
-        settings.setConfiguredEnterHotkey(draft.alternateCompletionHotkey)
-        settings.setConfiguredHistoryHotkey(draft.historyHotkey)
-        settings.primaryCompletionBehavior = draft.primaryCompletionBehavior
-        settings.alternateCompletionEnabled = draft.alternateCompletionEnabled
-        settings.enterDelayMilliseconds = draft.enterDelayMilliseconds
-        settings.aiCleanupEnabled = draft.aiCleanupEnabled
-        settings.aiCleanupBaseURL = draft.aiCleanupBaseURL
-        settings.aiCleanupModel = draft.aiCleanupModel
-        settings.inputDevice = draft.inputDevicePreference
-        settings.audioFileTranscriptionOutputDirectory = draft.audioFileTranscriptionOutputDirectory
-        settings.removeFinalPeriod = draft.removeFinalPeriod
-        settings.recordingHUDRecordingColor = draft.recordingColor
-        settings.recordingHUDTranscribingColor = draft.transcribingColor
-        settings.recordingHUDBackgroundStyle = draft.backgroundStyle
-        settings.recordingHUDSize = draft.hudSize
-        settings.agentEnabled = true
-        _ = settings.refreshFromDisk()
-        settingsDraft = ControlPanelSettingsDraft(settings: settings)
-        DistributedNotificationCenter.default().postNotificationName(
-            SETTINGS_CHANGED_NOTIFICATION,
-            object: nil,
-            userInfo: nil,
-            deliverImmediately: true
-        )
-        lastRenderFingerprint = ""
-        refresh(force: true)
-        settingsWindow?.performClose(sender)
-    }
-
-    private func captureAISettingsFields() {
-        guard var draft = settingsDraft else { return }
-        if let aiBaseURLField {
-            draft.aiCleanupBaseURL = aiBaseURLField.stringValue
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let aiModelField {
-            draft.aiCleanupModel = aiModelField.stringValue
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let aiKeyField {
-            pendingAIKey = aiKeyField.stringValue
-        }
-        settingsDraft = draft
-    }
-
-    private func refreshSettingsWindow(captureFields: Bool = true) {
-        guard let settingsWindow else { return }
-        let previousOffset = settingsScrollView?.contentView.bounds.origin.y ?? 0
-        if captureFields {
-            captureAISettingsFields()
-        }
-        settingsWindow.contentView = makeSettingsContentView()
-        settingsWindow.contentView?.layoutSubtreeIfNeeded()
-        guard previousOffset > 0,
-              let scroll = settingsScrollView,
-              let document = scroll.documentView else { return }
-        let maximumOffset = max(0, document.bounds.height - scroll.contentView.bounds.height)
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: min(previousOffset, maximumOffset)))
-        scroll.reflectScrolledClipView(scroll.contentView)
-    }
-
-    @objc private func resetPermissionsClicked(_ sender: NSButton) {
-        guard serviceOperation == nil else { return }
-        let runtime = AgentRuntimeStateStore.read()
-        guard runtime?.isRecording != true,
-              runtime?.isTranscribing != true else {
-            showError(
-                title: t("Сначала завершите диктовку", "Finish Dictation First"),
-                detail: t("Разрешения нельзя сбрасывать во время записи или транскрибации.",
-                          "Permissions cannot be reset while recording or transcribing.")
-            )
-            return
-        }
-
-        let confirmation = NSAlert()
-        confirmation.alertStyle = .critical
-        confirmation.messageText = t("Сбросить разрешения SuperDictate?",
-                                     "Reset SuperDictate Permissions?")
-        confirmation.informativeText = t(
-            "Микрофон, Универсальный доступ и Мониторинг ввода будут отозваны. Используйте это только для восстановления сломанных разрешений; затем их нужно выдать заново.",
-            "Microphone, Accessibility, and Input Monitoring access will be revoked. Use this only to recover stuck permissions; all three must then be granted again."
-        )
-        confirmation.addButton(withTitle: t("Отмена", "Cancel"))
-        confirmation.addButton(withTitle: t("Сбросить", "Reset"))
-        guard confirmation.runModal() == .alertSecondButtonReturn else { return }
-
-        sender.isEnabled = false
-        Task { @MainActor [weak self, weak sender] in
-            let failures = await Task.detached(priority: .userInitiated) {
-                Permissions.resetAll()
-            }.value
-            guard let self else { return }
-            sender?.isEnabled = true
-            self.permissionClickCount = [:]
-            self.refresh(force: true)
-
-            if failures.isEmpty {
-                let result = NSAlert()
-                result.alertStyle = .informational
-                result.messageText = self.t("Разрешения сброшены", "Permissions Reset")
-                result.informativeText = self.t(
-                    "Вернитесь в панель управления и выдайте три разрешения заново.",
-                    "Return to the control panel and grant all three permissions again."
-                )
-                result.addButton(withTitle: self.t("ОК", "OK"))
-                result.runModal()
-            } else {
-                self.showError(
-                    title: self.t("Сброс выполнен не полностью", "Reset Was Incomplete"),
-                    detail: self.t("Не удалось сбросить: \(failures.joined(separator: ", ")).",
-                                   "Could not reset: \(failures.joined(separator: ", ")).")
-                )
-            }
-        }
-    }
-
-    @objc private func grantPermissionClicked(_ sender: NSButton) {
-        guard Permission.allCases.indices.contains(sender.tag) else { return }
-        let permission = Permission.allCases[sender.tag]
-        if Permissions.isGranted(permission) {
-            permissionClickCount[permission] = nil
-            refresh(force: true)
-            return
-        }
-
-        let clicks = (permissionClickCount[permission] ?? 0) + 1
-        permissionClickCount[permission] = clicks
-        if clicks >= 2 {
-            Permissions.openSettings(for: permission)
-        } else {
-            Permissions.request(permission)
-        }
-        refresh(force: true)
-    }
-
-    private func showError(title: String, detail: String) {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = title
-        alert.informativeText = detail
-        alert.addButton(withTitle: t("ОК", "OK"))
-        alert.runModal()
-    }
-}
-
-private func runAudioCaptureDiagnostic(arguments: [String]) -> Int32? {
-    guard arguments.first == "--diagnose-audio-capture" else { return nil }
-    guard arguments.count == 3,
-          let duration = TimeInterval(arguments[2]),
-          duration > 0,
-          duration <= 15 else {
-        fputs("usage: SuperDictate --diagnose-audio-capture <device-uid|default> <seconds>\n",
-              stderr)
-        return EXIT_FAILURE
-    }
-
-    let preference = arguments[1] == "default" ? "" : arguments[1]
-    let capture = AudioCapture()
-    do {
-        try capture.startRecording(inputDevicePreference: preference)
-        Thread.sleep(forTimeInterval: duration)
-        let recording = capture.endRecording()
-        capture.stopEngine()
-
-        let capturedSeconds = Double(recording.samples.count) / SAMPLE_RATE
-        let peak = recording.samples.reduce(Float(0)) { max($0, abs($1)) }
-        print(
-            String(
-                format: "AUDIO CAPTURE: requested=%.2fs captured=%.3fs samples=%d peak=%.6f",
-                duration,
-                capturedSeconds,
-                recording.samples.count,
-                peak
-            )
-        )
-        return capturedSeconds >= duration * 0.75 ? EXIT_SUCCESS : EXIT_FAILURE
-    } catch {
-        capture.stopEngine()
-        fputs("AUDIO CAPTURE FAILED: \(error.localizedDescription)\n", stderr)
-        return EXIT_FAILURE
-    }
 }
 
 let app = NSApplication.shared

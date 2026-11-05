@@ -1,21 +1,24 @@
 # Privacy
 
-SuperDictate is designed for local dictation.
+VoiceSwap is designed for local dictation.
 
 ## Data that stays on the Mac
 
 - Microphone audio is processed locally and is not sent to a transcription API.
-- Successful transcripts, timing statistics, corrections, and preferences are
-  stored under `~/Library/Application Support/SuperDictate`.
+- Transcripts, statistics, corrections and preferences are stored in the
+  `com.vasya2004.voiceswap` preferences domain. Runtime state and pending recovery
+  audio are under `~/Library/Application Support/VoiceSwap`.
 - Diagnostic logs are stored under `~/Library/Logs` and avoid transcript text.
-- Pending audio is kept only as a crash-recovery safeguard and is removed after
-  it has been handled.
+- Pending audio is kept as a crash-recovery safeguard and removed after handling.
+  Explicit cancellation (× or Escape) deletes the current recording without
+  transcription or history. When automatic insertion cannot be confirmed, the
+  result remains in a local window until closed; history-off results are not persisted.
 - The speech model is cached by FluidAudio under
   `~/Library/Application Support/FluidAudio/Models`.
 
 ## Network access
 
-SuperDictate uses the network to download the speech model through
+VoiceSwap uses the network to download the speech model through
 FluidAudio and to check the public GitHub releases endpoint for updates. The
 installer downloads the application from the same public repository. It has no
 account system, advertising, analytics, or telemetry.

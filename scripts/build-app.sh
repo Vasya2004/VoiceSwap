@@ -3,15 +3,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUTPUT_APP="${1:-$ROOT_DIR/dist/SuperDictate.app}"
+OUTPUT_APP="${1:-$ROOT_DIR/dist/VoiceSwap.app}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 
 say() {
-    printf 'SuperDictate: %s\n' "$*"
+    printf 'VoiceSwap: %s\n' "$*"
 }
 
 fail() {
-    printf 'SuperDictate: %s\n' "$*" >&2
+    printf 'VoiceSwap: %s\n' "$*" >&2
     exit 1
 }
 

@@ -25,9 +25,14 @@ let package = Package(
                  revision: "313feb4bd692780a9a5b5fa9048fdb119486dde8"),
     ],
     targets: [
+        .target(name: "VoiceSwapCore"),
+        .target(name: "VoiceSwapChecks", dependencies: ["VoiceSwapCore"], path: "Tests/Checks"),
+        .executableTarget(name: "VoiceSwapCoreChecks", dependencies: ["VoiceSwapChecks"]),
+        .testTarget(name: "VoiceSwapCoreTests", dependencies: ["VoiceSwapChecks"]),
         .executableTarget(
             name: "Parakey",
             dependencies: [
+                "VoiceSwapCore",
                 .product(name: "FluidAudio", package: "FluidAudio"),
             ]
             // No `resources:` here on purpose. SwiftPM bundles them as
