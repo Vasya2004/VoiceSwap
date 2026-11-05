@@ -562,6 +562,16 @@ enum ParakeySelfTest {
             "bundle path labels should keep the canonical install path"
         )
         try expect(
+            privacySafeBundlePath("/Applications/VoiceSwap.app"),
+            equals: "/Applications/VoiceSwap.app",
+            "bundle path labels should keep the canonical VoiceSwap install path"
+        )
+        try expect(
+            VOICESWAP_INSTALL_COMMAND.contains("Vasya2004/VoiceSwap/main/install-voiceswap.sh"),
+            equals: true,
+            "manual update instructions should use the VoiceSwap installer"
+        )
+        try expect(
             privacySafeBundlePath("/Users/example/Downloads/SuperDictate.app"),
             equals: "SuperDictate.app",
             "bundle path labels should omit parent directories for nonstandard installs"

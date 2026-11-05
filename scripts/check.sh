@@ -38,5 +38,10 @@ grep -Fq '["-a", "-f", "^' swift/Sources/Parakey/main.swift || {
     exit 1
 }
 
+if grep -rn 'shlgd/SuperDictate/main/install.sh' swift/Sources --include='*.swift' | grep -v LegacySelfTests; then
+    printf 'User-facing update instructions must use the VoiceSwap installer.\n' >&2
+    exit 1
+fi
+
 git diff --check
 printf 'VoiceSwap checks passed (v%s).\n' "$app_version"

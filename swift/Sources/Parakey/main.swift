@@ -65,6 +65,7 @@ let GITHUB_REPOSITORY_PAGE = URL(string: "https://github.com/Vasya2004/VoiceSwap
 let GITHUB_RELEASES_PAGE = URL(string: "https://github.com/Vasya2004/VoiceSwap/releases/latest")!
 let GITHUB_UPDATE_MANIFEST_URL = URL(string: "https://raw.githubusercontent.com/Vasya2004/VoiceSwap/main/update.json")!
 let UPDATE_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
+let VOICESWAP_INSTALL_COMMAND = "curl -fsSL https://raw.githubusercontent.com/Vasya2004/VoiceSwap/main/install-voiceswap.sh | bash"
 let HOMEBREW_CASK_TAP = "shlgd/superdictate"
 let HOMEBREW_CASK_TOKEN = "shlgd/superdictate/superdictate"
 let HOMEBREW_CASK_INSTALLED_TOKEN = "parakey"
@@ -2550,7 +2551,7 @@ func privacySafeLogPath(_ url: URL) -> String {
 
 func privacySafeBundlePath(_ path: String) -> String {
     switch path {
-    case "/Applications/SuperDictate.app", "/tmp/SuperDictate-dev.app":
+    case "/Applications/VoiceSwap.app", "/Applications/SuperDictate.app", "/tmp/SuperDictate-dev.app":
         return path
     default:
         return privacySafeLogPath(path)
@@ -12120,8 +12121,12 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let generated = ISO8601DateFormatter().string(from: Date())
         let bundlePath = Bundle.main.bundlePath
         let installKind: String
-        if bundlePath == "/Applications/SuperDictate.app" {
+        let homeApplications = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Applications/VoiceSwap.app").path
+        if bundlePath == "/Applications/VoiceSwap.app" || bundlePath == "/Applications/SuperDictate.app" {
             installKind = "Applications app"
+        } else if bundlePath == homeApplications {
+            installKind = "user Applications app"
         } else if bundlePath == "/tmp/SuperDictate-dev.app" {
             installKind = "signed dev app"
         } else {
@@ -14563,9 +14568,11 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func showUpToDateAlert(currentVersion: String) {
         showAppForModal()
+        let language = settings.interfaceLanguage
         let alert = NSAlert()
-        alert.messageText = "Parakey is up to date"
-        alert.informativeText = "You're running v\(currentVersion)."
+        alert.messageText = localizedText("VoiceSwap актуален", "VoiceSwap is up to date", language: language)
+        alert.informativeText = localizedText("Установлена версия v\(currentVersion).",
+                                              "You're running v\(currentVersion).", language: language)
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -14583,25 +14590,28 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func startUpdate(for release: GitHubRelease) {
         showManualUpdateRequired(
             for: release,
-            reason: "The public source build updates by running the installer again."
+            reason: localizedText("Чтобы обновить VoiceSwap, запустите установщик ещё раз.",
+                                  "VoiceSwap updates by running the installer again.",
+                                  language: settings.interfaceLanguage)
         )
     }
 
     private func showManualUpdateRequired(for release: GitHubRelease, reason: String) {
         log("update click: manual update required: \(reason)")
         showAppForModal()
+        let language = settings.interfaceLanguage
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Manual update needed"
+        alert.messageText = localizedText("Нужно обновить вручную", "Manual update needed", language: language)
         alert.informativeText = """
         \(reason)
 
-        To update, run this command in Terminal:
+        \(localizedText("Выполните эту команду в Терминале:", "To update, run this command in Terminal:", language: language))
 
-        curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh | bash
+        \(VOICESWAP_INSTALL_COMMAND)
         """
-        alert.addButton(withTitle: "Open Release Page")
-        alert.addButton(withTitle: "Close")
+        alert.addButton(withTitle: localizedText("Открыть страницу релиза", "Open Release Page", language: language))
+        alert.addButton(withTitle: localizedText("Закрыть", "Close", language: language))
         let response = alert.runModal()
         if response == .alertFirstButtonReturn,
            let url = URL(string: release.htmlURL) {
@@ -14612,15 +14622,16 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func showUpdateCouldNotStart(detail: String) {
         log("update: could not start helper: \(detail)")
         showAppForModal()
+        let language = settings.interfaceLanguage
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Update couldn't start"
+        alert.messageText = localizedText("Не удалось начать обновление", "Update couldn't start", language: language)
         alert.informativeText = """
         \(detail)
 
-        You can update from Terminal:
+        \(localizedText("Обновить можно из Терминала:", "You can update from Terminal:", language: language))
 
-        curl -fsSL https://raw.githubusercontent.com/shlgd/SuperDictate/main/install.sh | bash
+        \(VOICESWAP_INSTALL_COMMAND)
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -14713,7 +14724,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             statePath = try createPrivateUpdateProgressStateFile()
         } catch {
             log("update: creating progress state failed: \(error.localizedDescription)")
-            showUpdateCouldNotStart(detail: "Parakey couldn't prepare the update progress window.")
+            showUpdateCouldNotStart(detail: "VoiceSwap couldn't prepare the update progress window.")
             return
         }
 
@@ -14737,7 +14748,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } catch {
             try? FileManager.default.removeItem(atPath: statePath)
             log("update: writing helper failed: \(error.localizedDescription)")
-            showUpdateCouldNotStart(detail: "Parakey couldn't write the update helper script.")
+            showUpdateCouldNotStart(detail: "VoiceSwap couldn't write the update helper script.")
             return
         }
         let helperLog: PrivateOutputFile
@@ -14747,7 +14758,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             try? FileManager.default.removeItem(atPath: helperPath)
             try? FileManager.default.removeItem(atPath: statePath)
             log("update: opening helper log failed: \(error.localizedDescription)")
-            showUpdateCouldNotStart(detail: "Parakey couldn't open the update helper log.")
+            showUpdateCouldNotStart(detail: "VoiceSwap couldn't open the update helper log.")
             return
         }
 
@@ -14761,7 +14772,7 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             try? FileManager.default.removeItem(atPath: statePath)
             helperLog.handle.closeFile()
             log("update: launching progress app failed: \(error.localizedDescription)")
-            showUpdateCouldNotStart(detail: "Parakey couldn't open the update progress window.")
+            showUpdateCouldNotStart(detail: "VoiceSwap couldn't open the update progress window.")
             return
         }
 
@@ -14777,9 +14788,9 @@ final class ParakeyApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             try? FileManager.default.removeItem(atPath: helperPath)
             helperLog.handle.closeFile()
             try? writePrivateUpdateProgressState(phase: "failed",
-                                                 message: "Parakey couldn't launch the update helper.",
+                                                 message: "VoiceSwap couldn't launch the update helper.",
                                                  to: statePath)
-            showUpdateCouldNotStart(detail: "Parakey couldn't launch the update helper.")
+            showUpdateCouldNotStart(detail: "VoiceSwap couldn't launch the update helper.")
             return
         }
         log("update helper spawned \(privacySafeLogPath(helperPath)), progress app \(privacySafeLogPath(progressAppPath)), logging to \(privacySafeLogPath(helperLog.path)); quitting for upgrade")
